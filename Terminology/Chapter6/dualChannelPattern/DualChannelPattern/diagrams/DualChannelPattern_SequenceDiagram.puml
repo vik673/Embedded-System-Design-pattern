@@ -1,0 +1,242 @@
+@startuml DualChannelPattern_SequenceDiagram
+
+!theme plain
+
+title Dual Channel Pattern - Sequence Diagram (Train Speed Control Example)
+
+participant "Train Control System" as TCS
+participant "DualChannelPattern" as DCP
+participant "Primary Channel\n(Optical Wheel)" as PC
+participant "Secondary Channel\n(GPS)" as SC
+participant "OpticalWheelSpeedSensor" as OWS
+participant "GPSSpeedSensor" as GPS
+participant "SpeedFilterTransform" as SFT1
+participant "SpeedFilterTransform" as SFT2
+participant "SpeedToEngineOutput" as SEO1
+participant "SpeedToEngineOutput" as SEO2
+participant "ReasonablenessChecker" as RC1
+participant "ReasonablenessChecker" as RC2
+participant "EngineActuator" as EA
+
+== System Initialization ==
+
+TCS -> DCP : DualChannelPattern_Create()
+activate DCP
+
+TCS -> PC : Channel_Create(PRIMARY_CHANNEL_ID)
+activate PC
+PC --> TCS : Primary Channel*
+
+TCS -> SC : Channel_Create(SECONDARY_CHANNEL_ID)
+activate SC
+SC --> TCS : Secondary Channel*
+
+TCS -> DCP : setPrimaryChannel(primaryChannel)
+TCS -> DCP : setSecondaryChannel(secondaryChannel)
+
+' Setup Primary Channel (Optical Wheel Speed)
+TCS -> OWS : OpticalWheelSpeedSensor_Create()
+activate OWS
+TCS -> SFT1 : SpeedFilterTransform_Create()
+activate SFT1
+TCS -> SEO1 : SpeedToEngineOutputTransform_Create()
+activate SEO1
+TCS -> RC1 : ReasonablenessChecker_Create()
+activate RC1
+TCS -> EA : EngineActuator_Create()
+activate EA
+
+TCS -> PC : setSensorDriver(opticalSensor)
+TCS -> PC : setDataTransform(speedFilter1)
+TCS -> PC : setActuatorDriver(engineActuator)
+TCS -> SFT1 : setNext(speedToEngineTransform1)
+TCS -> SEO1 : setTransformChecker(reasonablenessChecker1)
+
+' Setup Secondary Channel (GPS Speed)
+TCS -> GPS : GPSSpeedSensor_Create()
+activate GPS
+TCS -> SFT2 : SpeedFilterTransform_Create()
+activate SFT2
+TCS -> SEO2 : SpeedToEngineOutputTransform_Create()
+activate SEO2
+TCS -> RC2 : ReasonablenessChecker_Create()
+activate RC2
+
+TCS -> SC : setSensorDriver(gpsSensor)
+TCS -> SC : setDataTransform(speedFilter2)
+TCS -> SC : setActuatorDriver(engineActuator)
+TCS -> SFT2 : setNext(speedToEngineTransform2)
+TCS -> SEO2 : setTransformChecker(reasonablenessChecker2)
+
+' Configure cross-channel references for checkers
+TCS -> RC1 : setChannel(primaryChannel)
+TCS -> RC1 : setOtherChannel(secondaryChannel)
+TCS -> RC2 : setChannel(secondaryChannel)
+TCS -> RC2 : setOtherChannel(primaryChannel)
+
+TCS -> PC : enable()
+TCS -> SC : enable()
+
+== Normal Operation (Both Channels Active) ==
+
+loop Every Control Cycle
+    TCS -> DCP : processChannels()
+    
+    ' Primary Channel Processing
+    DCP -> PC : processData()
+    PC -> OWS : readSensor()
+    OWS -> OWS : measure wheel rotation frequency
+    OWS --> PC : wheel_speed_raw
+    
+    alt Sensor Data Valid
+        PC -> SFT1 : transform(wheel_speed_raw)
+        SFT1 -> SFT1 : apply low-pass filter
+        SFT1 --> PC : filtered_speed
+        
+        PC -> SEO1 : transform(filtered_speed)
+        SEO1 -> SEO1 : calculate PID control output
+        SEO1 --> PC : engine_output
+        
+        PC -> RC1 : check(engine_output)
+        RC1 -> RC1 : validate output is reasonable
+        
+        alt Reasonableness Check Passes
+            RC1 --> PC : CHECK_PASSED
+            PC -> EA : actuate(engine_output)
+            EA -> EA : set throttle position
+            
+        else Reasonableness Check Fails
+            RC1 --> PC : CHECK_FAILED
+            note right : Primary channel fault detected
+            RC1 -> RC1 : switchToOtherChannel()
+            RC1 -> PC : disable()
+            note right : Switch to secondary channel
+        end
+        
+    else Sensor Data Invalid
+        PC -> PC : disable()
+        note right : Primary channel disabled due to sensor fault
+    end
+    
+    ' Secondary Channel Processing (if enabled)
+    alt Secondary Channel Enabled
+        DCP -> SC : processData()
+        SC -> GPS : readSensor()
+        GPS -> GPS : calculate position from satellites
+        GPS -> GPS : calculateSpeedFromPosition()
+        GPS --> SC : gps_speed_raw
+        
+        alt GPS Data Valid
+            SC -> SFT2 : transform(gps_speed_raw)
+            SFT2 -> SFT2 : apply low-pass filter
+            SFT2 --> SC : filtered_speed
+            
+            SC -> SEO2 : transform(filtered_speed)
+            SEO2 -> SEO2 : calculate PID control output
+            SEO2 --> SC : engine_output
+            
+            SC -> RC2 : check(engine_output)
+            RC2 -> RC2 : validate output is reasonable
+            
+            alt Reasonableness Check Passes
+                RC2 --> SC : CHECK_PASSED
+                SC -> EA : actuate(engine_output)
+                EA -> EA : set throttle position
+                
+            else Reasonableness Check Fails
+                RC2 --> SC : CHECK_FAILED
+                note left : Secondary channel fault detected
+                RC2 -> RC2 : switchToOtherChannel()
+                RC2 -> SC : disable()
+                note left : Try to switch back to primary
+            end
+            
+        else GPS Data Invalid
+            SC -> SC : disable()
+            note left : Secondary channel disabled due to sensor fault
+        end
+    end
+end
+
+== Fault Scenario: Primary Channel Failure ==
+
+note over TCS, EA : External interference affects optical sensor
+
+TCS -> DCP : processChannels()
+DCP -> PC : processData()
+PC -> OWS : readSensor()
+OWS -> OWS : optical sensor malfunction
+OWS --> PC : INVALID_DATA
+
+PC -> PC : disable()
+note right : Primary channel self-disables
+
+' System automatically continues with secondary channel
+DCP -> SC : processData()
+SC -> GPS : readSensor()
+GPS -> GPS : calculate position from satellites
+GPS --> SC : gps_speed_raw
+
+SC -> SFT2 : transform(gps_speed_raw)
+SFT2 --> SC : filtered_speed
+SC -> SEO2 : transform(filtered_speed)
+SEO2 --> SC : engine_output
+SC -> RC2 : check(engine_output)
+RC2 --> SC : CHECK_PASSED
+SC -> EA : actuate(engine_output)
+
+note over TCS, EA : System continues operation using GPS channel
+
+== Fault Scenario: Both Channels Fail ==
+
+note over TCS, EA : Severe interference affects both sensors
+
+TCS -> DCP : processChannels()
+
+' Primary channel fails
+DCP -> PC : processData()
+PC -> OWS : readSensor()
+OWS --> PC : INVALID_DATA
+PC -> PC : disable()
+
+' Secondary channel also fails
+DCP -> SC : processData()
+SC -> GPS : readSensor()
+GPS --> SC : INVALID_DATA
+SC -> SC : disable()
+
+DCP -> DCP : enterFaultSafeMode()
+note over DCP : Both channels failed - enter fault-safe mode
+DCP -> EA : actuate(SAFE_VALUE)
+EA -> EA : reduce throttle to safe position
+
+== System Cleanup ==
+
+TCS -> DCP : DualChannelPattern_Destroy()
+DCP -> PC : Channel_Destroy()
+PC -> OWS : OpticalWheelSpeedSensor_Destroy()
+deactivate OWS
+PC -> SFT1 : SpeedFilterTransform_Destroy()
+deactivate SFT1
+PC -> SEO1 : SpeedToEngineOutputTransform_Destroy()
+deactivate SEO1
+PC -> RC1 : ReasonablenessChecker_Destroy()
+deactivate RC1
+deactivate PC
+
+DCP -> SC : Channel_Destroy()
+SC -> GPS : GPSSpeedSensor_Destroy()
+deactivate GPS
+SC -> SFT2 : SpeedFilterTransform_Destroy()
+deactivate SFT2
+SC -> SEO2 : SpeedToEngineOutputTransform_Destroy()
+deactivate SEO2
+SC -> RC2 : ReasonablenessChecker_Destroy()
+deactivate RC2
+deactivate SC
+
+DCP -> EA : EngineActuator_Destroy()
+deactivate EA
+deactivate DCP
+
+@enduml

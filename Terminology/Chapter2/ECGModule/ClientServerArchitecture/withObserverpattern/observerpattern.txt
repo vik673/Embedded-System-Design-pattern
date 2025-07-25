@@ -1,0 +1,629 @@
+Observer Pattern
+•	 Abstract
+The observer pattern addresses the concern of dynamically adding and removing clients of
+data or services, as well as optimizing the processing associated with updating those clients
+in a timely way.
+•	 Problem
+This pattern maintains the class client-server architecture in which the clients know about a
+server that has either data or services of interest, but that knowledge is one way. In spite of
+this, the responsibility for updating the clients in an efficient and timely way is given to the
+server. In addition, because the server maintains a list of interested clients, it notifies all
+clients when it is appropriate to do so, such as periodically or when the data changes.
+Clients can be dynamically added to or removed from the server as the system runs, while
+not requiring the server to have any knowledge of the clients (other than the location of an
+operation of the correct signature).
+•	 Pattern structure
+This pattern defines the following roles:
+•	 Abstract Observer
+This element has a one-way association (link) to the Abstract Subject so that it can
+request to be added to the list of interested clients (a process known as subscribing) or
+removed from the list (known as unsubscribing). It provides an operation with a specific
+signature to be invoked by the subject when appropriate.
+•	 Abstract Subject
+This element will serve as the base class for the server in the client-server architecture; it
+has information or services needed by the Abstract Observer. It provides operations to
+add or remove clients (subscribe and unsubscribe, respectively) and can notify all
+currently subscribed clients when appropriate. Most common strategies for notification
+are either periodically or when the data change. This element creates a new notification
+handle for each subscribed client, forming a list of notification handles. While this list
+can be managed in any number of ways, in this case it will be handled as a linked list.
+Notification of the clients is simply a matter of “walking the list” and invoking the
+update operation for each Abstract Observer currently subscribed.
+•	 Notification handle
+This element provides a dynamic callback link for the Abstract Subject to the Abstract
+Observer; specifically, it has, as a data element, a pointer to the update operation of the
+server. It also has a link to the next element in the list which is NULL at the end of the list.
+•	 Concrete Observer (formal parameter)
+This element is the subclass of the Abstract Observer; it inherits the link to the Abstract
+Subject and provides a (nonimplemented) update operation that will be invoked by the
+Concrete Subject.
+
+•	 Concrete Subject (formal parameter)
+This element is the subclass of the Abstract Subject; it inherits the ability to add and
+remove clients and notify the clients when appropriate. It also provides the applicationspecific data or services of interest to the Concrete Observer.
+•	 Consequences
+This pattern simplifies the process for dynamically adding and removing clients,
+especially ones that may not have even been defined when the server was created. In
+addition, because the server can decide when it is appropriate to update the clients, it
+results in timely delivery of information and services. This delivery is also efficient
+because the clients need not poll the server for updated data only to find the data are
+the same.
+Now, let’s look at how this solution stacks up.
+1. Execution efficiency
+This approach is efficient in the sense that the client gets data functionality only when there
+is a need similar to the push approach. It rates an 8 here.
+2. Maintainability
+This solution maintains the classic client-server architecture data encapsulation, improving
+its maintainability. The solution earns a score of 7 here.
+3. Run-time flexibility
+The observer pattern has good run-time flexibility; the only requirement on the client is that
+it provides an update method with the appropriate signature. It rates a 9 here.
+4. Memory usage
+Similar to the push approach, this pattern uses less memory because the clients need not
+track their position within the data buffer, so it gets a 9 on this criterion. 	
+Once selected, the next step is to instantiate the pattern and, as a part of that, to make decisions
+about how to best implement the pattern. Instantiation is a matter of replacing the formal
+parameters of the pattern with elements from your original model. In this case, formal parameter Concrete Subject will be replaced by the TMDQueue and the formal parameter Concrete
+Observer will be replaced by the clients WaveformDisplay, HistogramDisplay,
+QRSDetector, and ArrythmiaDetector. The resulting design model is shown in
+Figure 2-11. In this diagram you can see the original environmental control elements, the
+pattern elements, and their relations.
+The relations, attributes, and operations of the Abstract Subject are inherited by the TMDQueue
+class while the features of the Abstract Observer are inherited by the various clients of the
+TMDQueue. Inheritance can be implemented in C in a number of ways, such as:
+•	 Copying from the super class implementation into the subclass implementation
+•	 Using a “mix-in”; that is, delegate service requests from an instance of the subclass to an
+instance of the super class
+•	 Implementing a virtual function table
+In our code implementation, we will take the simplest possible solution just to illustrate the
+pattern; we will copy and implement code from the Abstract Subject into the TMDQueue and do
+the same for code from the Abstract Observer into the clients. Other implementation strategies
+can be used, if desired.
+The net result can be seen in Figure 2-11. Note that the clients have lost their index attribute and
+gained an update() member function, as well as an Init() function (that calls subscribe()
+on the TMDQueue) and a Cleanup() function that calls unsubscribe(). The TMDQueue has
+added subscribe(), unsubscribe(), and notify() operations and an association to the
+list of NotificationHandle classes. The notification handle holds the address for the relevant
+class’s update() function. Calling notify() walks the linear linked list of notification handles.
+Code Listing 2-11 and Code Listing 2-12 show the header and implementation of the TMDQueue
+class updated to include the server side of the observer pattern. You can see the addition of the
+link for the NotificationHandle list to manage the subscriptions of interested observers.
+#ifndef TMDQueue_H
+
+#define TMDQueue_H
+
+/*## auto_generated */
+
+#include <stdio.h>
+
+#include "ECGPkg.h"
+
+#include "TimeMarkedData.h"
+
+struct NotificationHandle;
+typedef struct TMDQueue TMDQueue;
+/*
+This queue is meant to operate as a "leaky" queue. In this queue,
+data are never removed per se, but are instead overwritten when the
+buffer pointer wraps around. This allows for many clients to read
+the same data from the queue. */
+struct TMDQueue {
+int head;
+int nSubscribers;
+int size;
+struct TimeMarkedData buffer[QUEUE_SIZE];
+struct NotificationHandle* itsNotificationHandle;
+};
+/* Constructors and destructors:*/
+void TMDQueue_Init(TMDQueue* const me);
+
+void TMDQueue_Cleanup(TMDQueue* const me);
+
+/* Operations */
+int TMDQueue_getNextIndex(TMDQueue* const me, int index);
+void TMDQueue_insert(TMDQueue* const me, const struct TimeMarkedData tmd);
+boolean TMDQueue_isEmpty(TMDQueue* const me);
+void TMDQueue_notify(TMDQueue* const me, const struct TimeMarkedData tmd);
+struct TimeMarkedData TMDQueue_remove(TMDQueue* const me, int index);
+/* The NotificationHandle is managed as a linked list, with insertions coming at the end. */
+
+void TMDQueue_subscribe(TMDQueue* const me, const UpdateFuncPtr updateFuncAddr);
+
+int TMDQueue_unsubscribe(TMDQueue* const me, const UpdateFuncPtr updateFuncAddr);
+
+int TMDQueue_getBuffer(const TMDQueue* const me);
+
+struct NotificationHandle*
+
+TMDQueue_getItsNotificationHandle(const TMDQueue* const me);
+
+void TMDQueue_setItsNotificationHandle(TMDQueue* const me, struct NotificationHandle*
+
+p_NotificationHandle);
+
+TMDQueue * TMDQueue_Create(void);
+
+void TMDQueue_Destroy(TMDQueue* const me);
+
+#endif
+
+TMDQueue Header File with Observer Pattern
+
+#include "TMDQueue.h"
+
+#include "NotificationHandle.h"
+
+static void initRelations(TMDQueue* const me);
+
+static void cleanUpRelations(TMDQueue* const me);
+
+void TMDQueue_Init(TMDQueue* const me) {
+
+me->head = 0;
+
+me->nSubscribers = 0;
+
+me->size = 0;
+
+me->itsNotificationHandle = NULL;
+
+initRelations(me);
+
+}
+void TMDQueue_Cleanup(TMDQueue* const me) {
+
+cleanUpRelations(me);
+
+}
+
+int TMDQueue_getNextIndex(TMDQueue* const me, int index) {
+
+/* this operation computes the next index from the
+
+first using modulo arithmetic
+
+*/
+
+return (index+1) % QUEUE_SIZE;
+
+}
+void TMDQueue_insert(TMDQueue* const me, const struct TimeMarkedData tmd) {
+
+/* note that because we never ‘remove’ data from this
+
+leaky queue, size only increases to the queue size and
+
+then stops increasing. Insertion always takes place at the head.
+
+*/
+printf("Indenting at: %d Data #: %d", me->head, tmd.timeInterval);
+
+me->buffer[me->head] = tmd;
+
+me->head = TMDQueue_getNextIndex(me, me->head);
+
+if (me->size < QUEUE_SIZE) ++me->size;
+
+printf(" Storing data value: %d\n", tmd.dataValue);
+
+TMDQueue_notify(me, tmd);
+
+}
+boolean TMDQueue_isEmpty(TMDQueue* const me) {
+return (boolean)(me->size == 0);
+}
+void TMDQueue_notify(TMDQueue* const me, const struct TimeMarkedData tmd) {
+NotificationHandle *pNH;
+pNH= me->itsNotificationHandle;
+while (pNH) {
+printf("----->> calling updateAddr on pNH %d\n",pNH);
+
+pNH->updateAddr(NULL, tmd);
+
+pNH = pNH->itsNotificationHandle;
+
+};
+
+}
+struct TimeMarkedData TMDQueue_remove(TMDQueue* const me, int index) {
+TimeMarkedData tmd;
+tmd.timeInterval=-1; /* sentinel values */
+tmd.dataValue=-9999;
+if (!TMDQueue_isEmpty(me) && (index>=0) && (index < QUEUE_SIZE)
+
+&& (index < me->size)) {
+
+tmd = me->buffer[index];
+
+}
+return tmd;
+}
+void TMDQueue_subscribe(TMDQueue* const me, const UpdateFuncPtr updateFuncAddr) {
+struct NotificationHandle *pNH;
+pNH = me->itsNotificationHandle;
+if (!pNH) { /* empty list? */
+
+/* create a new Notification Handle, initialize it, and point to it */
+
+printf("-----> Added to a new list\n");
+
+me->itsNotificationHandle = NotificationHandle_Create();
+
+printf("-----> Called NH_Create()\n");
+
+pNH = me->itsNotificationHandle;
+
+}
+
+else {
+
+/* search list to find end */
+
+printf("-----> Adding to an existing list\n");
+
+while (pNH->itsNotificationHandle != NULL) {
+
+printf("Getting ready to augment ptr %d to %d\n", pNH, pNH->itsNotificationHandle);
+pNH = pNH->itsNotificationHandle; /* get next element in list */
+printf("-----> augmenting ptr\n");
+};
+printf("-----> calling NH_Create\n");
+pNH->itsNotificationHandle = NotificationHandle_Create();
+pNH = pNH->itsNotificationHandle; /* pt to the new instance */
+printf("-----> called NH_Create()\n");
+}; /* end if */
+/* pNH now points to an constructed Notification Handle */
+
+pNH->updateAddr = updateFuncAddr; /* set callback address */
+
+++me->nSubscribers;
+
+printf("-----> wrote updateAddr \n");
+
+if (pNH->itsNotificationHandle)
+
+printf("xxxxxxx> next Ptr not null!\n\n");
+else
+printf("-----> next ptr null\n\n");
+}
+int TMDQueue_unsubscribe(TMDQueue* const me, const UpdateFuncPtr updateFuncAddr) {
+struct NotificationHandle *pNH, *pBack;
+pNH = pBack = me->itsNotificationHandle;
+if (pNH == NULL) { /* empty list? */
+
+return 0; /* can’t delete it from an empty list */
+
+}
+
+else { /* is it the first one? */
+if (pNH->updateAddr == updateFuncAddr) {
+
+me->itsNotificationHandle = pNH->itsNotificationHandle;
+
+free(pNH);
+
+printf(">>>>>> Removing the first element\n");
+
+--me->nSubscribers;
+
+return 1;
+
+}
+
+else { /* search list to find element */
+
+printf(">>>>>> Searching....\n");
+
+while (pNH != NULL) {
+
+if (pNH->updateAddr != updateFuncAddr) {
+pBack->itsNotificationHandle = pNH->itsNotificationHandle;
+free(pNH);
+printf(">>>>>> Removing subscriber in list\n");
+--me->nSubscribers;
+return 1;
+}; /* end if found */
+pBack = pNH; /* points to the list element before pNH */
+pNH = pNH->itsNotificationHandle; /* get next element in list */
+}; /* end while */
+}; /* end else */
+
+printf(">>>>>> Didn’t remove any subscribers\n");
+
+return 0;
+
+}; /* non-empty list */
+
+}
+int TMDQueue_getBuffer(const TMDQueue* const me) {
+int iter = 0;
+return iter;
+}
+struct NotificationHandle*
+TMDQueue_getItsNotificationHandle(const TMDQueue* const me) {
+return (struct NotificationHandle*)me->itsNotificationHandle;
+}
+void TMDQueue_setItsNotificationHandle(TMDQueue* const me, struct NotificationHandle*
+p_NotificationHandle) {
+me->itsNotificationHandle = p_NotificationHandle;
+}
+TMDQueue * TMDQueue_Create(void) {
+TMDQueue* me = (TMDQueue *) malloc(sizeof(TMDQueue));
+if(me!=NULL)
+{
+TMDQueue_Init(me);
+}
+return me;
+}
+void TMDQueue_Destroy(TMDQueue* const me) {
+if(me!=NULL)
+{
+TMDQueue_Cleanup(me);
+}
+free(me);
+}
+static void initRelations(TMDQueue* const me) {
+{
+
+int iter = 0;
+
+while (iter < QUEUE_SIZE){
+
+TimeMarkedData_Init(&((me->buffer)[iter]));
+TimeMarkedData__setItsTMDQueue(&((me->buffer)[iter]), me);
+iter++;
+}
+}
+}
+static void cleanUpRelations(TMDQueue* const me) {
+{
+
+int iter = 0;
+
+while (iter < QUEUE_SIZE){
+
+TimeMarkedData_Cleanup(&((me->buffer)[iter]));
+
+iter++;
+
+}
+
+}
+
+if(me->itsNotificationHandle != NULL)
+
+{
+
+me->itsNotificationHandle = NULL;
+
+}
+
+}
+
+Code Listing 2-12: TMDQueue Implementation File with Observer Pattern
+The code for the notification handle class is straightforward, as can be seen in Code Listing 2­
+13 and Code Listing 2-14.
+#ifndef NotificationHandle_H
+
+#define NotificationHandle_H
+
+#include <stdio.h>
+
+#include "ECGPkg.h"
+
+typedef struct NotificationHandle NotificationHandle;
+
+struct NotificationHandle {
+
+UpdateFuncPtr updateAddr;
+
+struct NotificationHandle* itsNotificationHandle;
+
+};
+
+/* Constructors and destructors:*/
+
+void NotificationHandle_Init(NotificationHandle* const me);
+
+void NotificationHandle_Cleanup(NotificationHandle* const me);
+struct NotificationHandle*
+
+NotificationHandle_getItsNotificationHandle(const
+
+NotificationHandle* const me);
+
+void
+
+NotificationHandle_setItsNotificationHandle(NotificationHandle*
+
+const me, struct NotificationHandle* p_NotificationHandle);
+
+NotificationHandle * NotificationHandle_Create(void);
+void NotificationHandle_Destroy(NotificationHandle* const me);
+#endif
+Code Listing 2-13: NotificationHandle.h Header File
+#include "NotificationHandle.h"
+static void cleanUpRelations(NotificationHandle* const me);
+void NotificationHandle_Init(NotificationHandle* const me) {
+
+me->itsNotificationHandle = NULL;
+
+}
+ 
+void NotificationHandle_Cleanup(NotificationHandle* const me) {
+
+cleanUpRelations(me);
+
+}
+
+struct NotificationHandle*
+
+NotificationHandle_getItsNotificationHandle(const
+
+NotificationHandle* const me) {
+
+return (struct NotificationHandle*)me->itsNotificationHandle;
+
+}
+
+void
+
+NotificationHandle_setItsNotificationHandle(NotificationHandle*
+
+const me, struct NotificationHandle* p_NotificationHandle) {
+
+me->itsNotificationHandle = p_NotificationHandle;
+
+}
+
+NotificationHandle * NotificationHandle_Create(void) {
+
+NotificationHandle* me = (NotificationHandle *)
+
+malloc(sizeof(NotificationHandle));
+
+if(me!=NULL)
+
+{
+
+NotificationHandle_Init(me);
+
+}
+
+return me;
+
+}
+
+void NotificationHandle_Destroy(NotificationHandle* const me) {
+
+if(me!=NULL)
+
+{
+
+NotificationHandle_Cleanup(me);
+
+}
+
+free(me);
+
+}
+
+static void cleanUpRelations(NotificationHandle* const me) {
+
+if(me->itsNotificationHandle != NULL)
+
+{
+
+me->itsNotificationHandle = NULL;
+
+}
+
+}
+
+Code Listing 2-14: NotificationHandle.c Implementation File
+Finally, let’s look at just one of the clients to see how the client side of the observer pattern is
+implemented. Code Listing 2-15 shows the implementation file for the HistogramDisplay class
+with the client side of the observer pattern (specifically, it calls the TMDQueue_subscribe()
+operation in its initializer).
+#include "HistogramDisplay.h"
+
+#include "TimeMarkedData.h"
+
+#include "TMDQueue.h"
+ 
+static void cleanUpRelations(HistogramDisplay* const me);
+void HistogramDisplay_Init(HistogramDisplay* const me) {
+me->itsTMDQueue = NULL;
+{
+/* call subscribe to connect to the server */
+TMDQueue_subscribe(me->itsTMDQueue,
+HistogramDisplay_update);
+}
+}
+void HistogramDisplay_Cleanup(HistogramDisplay* const me) {
+/* remove yourself from server subscription list */
+TMDQueue_unsubscribe(me->itsTMDQueue,
+HistogramDisplay_update);
+cleanUpRelations(me);
+}
+void HistogramDisplay_update(HistogramDisplay* const me, const struct TimeMarkedData
+tmd) {
+printf(" Histogram -> TimeInterval: %d DataValue: %d\n", tmd.timeInterval, tmd.
+dataValue);
+}
+void HistogramDisplay_updateHistogram(HistogramDisplay* const me) {
+}
+struct TMDQueue* HistogramDisplay_getItsTMDQueue(const HistogramDisplay* const me) {
+return (struct TMDQueue*)me->itsTMDQueue;
+}
+void HistogramDisplay_setItsTMDQueue(HistogramDisplay* const me,
+struct TMDQueue* p_TMDQueue) {
+me->itsTMDQueue = p_TMDQueue;
+}
+HistogramDisplay * HistogramDisplay_Create(void) {
+HistogramDisplay* me = (HistogramDisplay *)
+malloc(sizeof(HistogramDisplay));
+if(me!=NULL)
+{
+HistogramDisplay_Init(me);
+}
+return me;
+}
+void HistogramDisplay_Destroy(HistogramDisplay* const me) {
+if(me!=NULL)
+{
+HistogramDisplay_Cleanup(me);
+
+}
+
+free(me);
+
+}
+static void cleanUpRelations(HistogramDisplay* const me) {
+
+if(me->itsTMDQueue != NULL)
+
+{
+
+me->itsTMDQueue = NULL;
+
+}
+
+}
+
+Code Listing 2-15: HistogramDisplay.c Implementation File with Observer Pattern
+To summarize, we created a correctly functioning code base and then decided how we
+wanted to optimize it. We did a miniature trade study to look at some different alternatives
+and how differently they optimized our weighted set of design criteria. In this case, the
+observer pattern had the best results, so we updated our code base to include the pattern.
+Simple, eh?
+2.2 The Approach
+The Approach
+This book provides many different patterns for use in embedded systems, as you will see in the
+following chapters. In each chapter, a number of patterns are presented. Each pattern follows
+the same basic presentation style and is presented with nine basic elements:
+•	 Abstract
+The abstract provides an overview of the pattern and why you might care, including an
+overview of the problems it addresses, the solution structure, and the key consequences.
+•	 Problem
+This section discusses the problem context and the optimizations provided by the pattern.
+•	 Applicability
+This section gives a list of conditions required for the pattern to be applicable.
+•	 Pattern structure
+The pattern structure shows the structural elements within the pattern, their roles, and their
+relations. Each pattern will be shown using a UML class diagram.
+•	 Collaboration role definitions
+This section details the role each structural element plays in the pattern and its
+responsibilities.
+•	 Consequences
+The consequences are a key aspect of the pattern description. This section identifies both
+the benefits and the costs of using the pattern.
+•	 Implementation strategies
+Patterns can be implemented in different ways. This section discusses some
+implementation alternatives.
+Related patterns
+This section provides references to other patterns in the book that address similar problems,
+possibly with different applicability criteria and consequences.
+•	 Example
+Each pattern will be illustrated with an example. Both a UML diagram and source code will
+be provided with the pattern. 

@@ -1,0 +1,122 @@
+Observer Pattern
+The Observer Pattern is one of the most common patterns around. When present, it provides a
+means for objects to “listen in” on others while requiring no modifications whatsoever to the
+data servers. In the embedded domain, this means that sensor data can be easily shared to
+elements that may not even exist when the sensor proxies are written.
+3.5.1 Abstract
+The Observer Pattern (also known as the “Publish-Subscribe Pattern”) provides notification to a
+set of interested clients that relevant data have changed. It does this without requiring the data
+server to have any a priori knowledge about its clients. Instead, the clients simply offer a
+subscription function that allows clients to dynamically add (and remove) themselves to the
+notification list. The data server can then enforce whatever notification policy it desires. Most
+commonly, data are sent whenever new data arrive, but clients can also be updated periodically,
+or with a minimum or maximum frequency. This reduces the computational burden on the
+clients to ensure that they have timely data.
+3.5.2 Problem
+In a naïve situation, each client can request data periodically from a data server in case the data
+have changed, but that is wasteful of compute and communication resources as the clients
+generally cannot know when new data are available. If the data server pushes the data out, then
+it must know who all of its clients are, breaking the basic rule of client-server relations13
+requiring changes to the server to add new clients.
+The Observer Pattern addresses this concern by adding subscription and unsubscription services
+to the data server. Thus a client can dynamically add itself to the notification list without a priori
+knowledge of the client on the part of the server. On the server side, the server can enforce the
+appropriate update policy to the notification of its interested clients. In addition, the pattern allows
+dynamic modification of subscriber lists and so adds a great deal of flexibility to the software.
+3.5.3 Pattern Structure
+Figure 3-8 shows the basic structure of the pattern. The AbstractSubject is the data server
+plus the machinery to maintain a list of interested subscribers. A client adds itself to the
+notification list by passing a pointer to an accept(Datum) function and removes itself by
+calling unsubscribe with the same pointer. When the AbstractSubject decides to notify its
+clients, the notify() function walks through the client list, calling the pointed-to function and
+passing the relevant data. The AbstractClient provides the accept(Datum) function to
+receive and process the incoming data.
+
+3.5.4.1 AbstractClient Interface
+The AbstractClient associates with the AbstractSubject so that it can invoke the
+latter’s various services. It contains an accept(Datum) function to be called when the
+AbstractClient subscribes as well as whenever the AbstractSubject thinks it is
+appropriate to send data. The AbstractClient is abstract in the sense that while it specifies
+the functions, it does not provide any implementation. It is realized by a set of
+ConcreteClients that provide implementation that do things with the received data.
+In addition to the accept(Datum) function, the AbstractClient associates with the data. This is
+normally realized with a pointer but it can also be a stack, global, or static variable.
+
+
+AbstractSubject Interface
+The AbstractSubject is the data server in this pattern. Relevant to this pattern it provides
+three services. The subscribe(acceptPtr) service adds the pointer to the accept function
+to the notification list. Its return value is zero if the add is successful or non-zero if not. The
+unsubscribe(acceptPtr) function removes the accept function from the notification list,
+again returning zero if successful. Finally, the notify() function walks the notification list to
+notify the subscribed clients. This is done by invoking the function pointed to by each
+notification handle.
+The AbstractSubject also contains a link to the Datum to be passed as well as a list of
+NotificationHandles. In the representation here, the NotificationHandle is implemented as an array of pointers, but it can also be a linked list or other data structure. Similarly,
+the Datum can be on the heap, stack, or static as appropriate.
+3.5.4.3 ConcreteClient
+The ConcreteClient is a concrete realization of the AbstractClient interface. That is, it
+provides an implementation of the acceptPtr(Datum) function as well as other functionality
+not relevant to the pattern per se.
+3.5.4.4 ConcreteSubject
+The ConcreteSubject is a concrete realization of the AbstractSubject interface. It
+provides implementation of the functions but also provides means to acquire and manage the
+data it distributes. The ConcreteSubject is often a HardwareProxy in addition to an
+AbstractSubject.
+3.5.4.5 Datum
+This element is a stand-in for the data of interest to the clients and subjects. It may be a simple
+primitive type such as an int or may be a complex struct.
+3.5.4.6 NotificationHandle
+The NotificationHandle is a representation of a means to invoke a client’s accept
+(Datum) function. By far, the most common implementation is as a function pointer, but other
+implementations can be used as well.
+3.5.5 Consequences
+The Observer Pattern simplifies the process of distributing data to a set of clients who
+may not be known at design-time, and dynamically managing lists of interested clients
+during run-time. This pattern maintains the fundamental client-server relation while
+providing run-time flexibility through its subscription mechanism. Compute efficiency is
+maintained because clients are only updated when appropriate; the most common policy is
+that the clients are updated when the data change, but any appropriate policy can be
+implemented.
+
+Implementation Strategies
+The only complex aspects of this pattern are the implementation of the notification handle and
+the management of the notification handle list. The notification handle itself is almost always a
+function callback, that is, a pointer to a function with the right signature. Of course, this
+signature varies with the data being returned, but it also depends on the implementation of the
+software “classes” as discussed in Chapter 1. If using the struct approach with the me pointers,
+this will be the first parameter of the accept function. If you don’t use the approach but write a
+more traditional C, then the realization of the ConcreteClients is more manual but you
+won’t have to include the me pointer in the accept function parameter list. In the example later
+in this section, we shall use the former approach.
+The easiest approach for the notification list is to declare an array big enough to hold all
+potential clients. This wastes memory in highly dynamic systems with many potential clients.
+An alternative is to construct the system as a linked list; that is, add another variable to each
+notification handle which is a pointer to the next one. Obviously, the last element in the list has
+a NULL next pointer value.
+
+
+Related Patterns
+This pattern can be freely mixed with the previous patterns in this chapter since its concerns are
+orthogonal. In embedded systems it is very common to add Observer functionality to a
+Hardware Proxy or Hardware Adapter, for example.
+
+
+Example
+Figure 3-9 provides a straightforward example of this pattern. In this example, the GasSensor
+is the ConcreteClient of the pattern; it provides the subscribe() and unsubscribe functions
+and manages the array of GasNotificationHandles. Because we implemented the pattern
+with the usage of our pseudo-object–oriented approach, all the operations have a first parameter
+that identifies the instance data. These “hidden parameters” are not shown in Figure 3-9 but
+they do show up in the code. This impacts the GasNotificationHandle in that not only do
+we need the function pointer for the acceptor function, we also need its instance data point to
+pass as its first argument.
+In addition to the subscribe() and unsubscribe() operations, the notify() function walks
+the list of registered subscribers and invokes the accept() operation using the simple statement
+me->itsGasNH[pos]->acceptorPtr(me->itsGasNH[pos]->instancePtr,
+me->itsGasData);
+In this way, the function being pointed to is accessed via the function pointer, where the first
+parameter is the instance data of the client and the second parameter is a pointer to the new data.
+The GasSensor class also includes a newData() function that calls the notify() function
+and a dumpList() function that prints out a list of the currently subscribed clients. The code
+for the GasSensor

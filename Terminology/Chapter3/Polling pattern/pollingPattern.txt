@@ -1,0 +1,353 @@
+Polling Pattern
+Another common pattern for getting sensor data or signals from hardware is to check periodically, a process known as polling. Polling is useful when the data or signals are not so urgent
+that they cannot wait until the next polling period to be received or when the hardware isn’t
+capable of generating interrupts when data or signals become available.
+3.8.1 Abstract
+The Polling Pattern is the simplest way to check for new data or signals from the hardware.
+Polling can be periodic or opportunistic; periodic polling uses a timer to indicate when the
+hardware should be sampled whereas opportunistic polling is done when it is convenient for the
+system, such as between major system functions or at some point in a repeated execution cycle.
+Opportunistic polling is, by definition, less regular but has less impact on the timeliness of other
+activities in which the system may be engaged.
+3.8.2 Problem
+The Polling Pattern addresses the concern of getting new sensor data or hardware signals into
+the system as it runs when the data or events are not highly urgent and the time between data
+sampling can be guaranteed to be fast enough.
+3.8.3 Pattern Structure
+This pattern comes in two flavors. Figure 3-17 shows the pattern structure for opportunistic
+polling while Figure 3-18 shows the pattern for periodic polling. The difference is that in the
+former pattern the applicationFunction will embed calls to poll() when convenient, and in the
+latter, a timer is created to start polling.
+
+Collaboration Roles
+This section describes the roles for both variants of this pattern
+ApplicationProcessingElement
+This elements has the applicationFunction that has a loop in which it invokes the poll()
+operation, such as
+while (processing) {
+action1();
+action2();
+action3();
+OpportunityPoller_poll(me->itsOpportunisticPoller);
+}
+3.8.4.2 Device
+The device provides data and/or device state information via accessible functions. This element
+can be a device driver or can simply read from memory- or port-mapped devices. This class
+provides two functions, one to retrieve data (typed as deviceData in the example) and one to
+retrieve device state (typed as an unsigned int in the example).
+
+In the example, there are MAX_POLL_DEVICES connected to the polling element so that the
+poll() function scans them all and notifies their respective clients.
+3.8.4.3 OpportunisticPoller
+This element has the poll() function that scans the attached devices for data and device state
+and passes this information on to the appropriate client for each. The difference between the
+OpportunisticPoller and the PeriodicPoller is that the latter has timer initialization and shutdown functionality in addition to polling for the data.
+3.8.4.4 PeriodicPoller
+Like the OpportunisticPoller, the PeriodicPoller has the poll() function that scans the
+attached devices for data and device state and passes this information on to the appropriate client for
+each. In addition, it has a variable for the poll time (settable in its setPollTime(t) function) and
+servicesto start and stop polling. The installInterruptTimer() function insertsthe address of
+
+the ISR into the interrupt vector table while the removeInterruptHandler() restores the
+original vector. The startPolling() function initializes the timer. The stopPolling() function stops the timer but leaves the vector in the interrupt vector table.
+3.8.4.5 PollDataClient
+This element is the client for data and state information from one or more of the devices. In
+some cases, there may be a single client for the data from all devices, but in general each device
+will have its own client.
+3.8.4.6 PollTimer
+The PollTimer element represents a timer and the services associated with using it. The
+startTimer() method installs the handleTimerInterrupt() interrupt service routine in the
+interrupt vector table and creates and initializes a timer with the pollTime attribute. Once the
+timer is started, it will set the hardware timer so that its ISR handleTimerInterrupt() will
+be invoked, which first resets the timer count and then calls the poll() function.
+3.8.5 Consequences
+Polling is simpler than the setup and use of the Interrupt Service Routines, although periodic
+polling is usually implemented with an ISR tied to a poll timer.
+Polling can check many different devices at the same time for status changes but is usually less
+timely than interrupts. For this reason, care must be taken that if there are deadlines associated
+with the data or signals that the poll time plus the response time is always less than the
+deadlines involved. If data arrive faster than the poll time, then data will be lost. This is not a
+problem in many applications but is fatal (sometimes literally so) in others.
+
+Implementation Strategies
+The simplest implementation is to insert the hardware check in the middle of a main processing
+loop that executes as long as the system operates. This is called “symmetric opportunistic
+polling” because it operates the same way all the time, even though the length of time the
+processing loops take may vary widely. Asymmetric opportunistic polling refers to the practice
+of placing checks for new data at convenient but unrelated points throughout the processing.
+This approach allows for better tuning (if you need to be more responsive, add some more
+checks) but has a larger impact on the primary flow and is harder to maintain.
+Periodic polling is polling that takes place with a regular time interval (known as the period)
+with a bounded variation (known as the jitter). To achieve this regularity, the checks for new
+data are initiated by a timer tied to an interrupt. Thus the periodic variant of the Polling Pattern
+is simply a special case of the Interrupt Pattern.
+
+Related Patterns
+Periodic polling is a special case of the Interrupt Pattern. In addition, the hardware checks may
+be done by invoking data acquisition services of Hardware Proxies or Hardware Adapters. In
+addition, the Observer Pattern can be merged in as well, with the polling element (OpportunisticPoller or PeriodicPoller) serving as the data server and the PollDataClients serving as the
+data clients.
+3.8.8 Example
+For the example shown in Figure 3-19, I decided to use the Periodic Polling Pattern to check for
+three breathing circuit sensors. The first of these sensors monitors the oxygen concentration in the
+breathing circuit, the second monitors the gas pressure (and holds the gas flow state), and the third
+monitors the pressure in the circuit. When the BEPeriodicPoller is created, its initializer
+(BCPeriodicPoller_Init()) calls the BCTimer::installInterruptHandler() service;
+similarly, the clean-up operation done when the BCPeriodicPoller is destroyed calls
+BCTimer_stopTiming() and then BCTimer_removeInterruptHandler().
+At some point, the BCPeriodicPoller is commanded to start polling via a call to
+BCPeriodicPoller_startPolling(). This function calls BC_Timer_startTimer
+(timeout) service, passing the desired poll period. From then on, until commanded
+otherwise, the timer will fire periodically and invoke the timer interrupt handler
+BCTimer_handleTimeInterrupt(), which resets the timer and calls
+BCPeriodicPoller_poll(). The poll() function then polls the data and state information
+from the three devices and sends them to the MedicalDisplay.
+#ifndef BCPeriodicPoller_H
+#define BCPeriodicPoller_H
+
+typedef int deviceData;
+
+typedef void (*timerVectorPtr)(void);
+
+#define MAX_POLL_DEVICES (10)
+
+#define DEFAULT_POLL_TIME (1000)
+
+struct BCTimer;
+
+struct BreathingCircuitSensor;
+
+struct MedicalDisplay;
+
+typedef struct BCPeriodicPoller BCPeriodicPoller;
+struct BCPeriodicPoller {
+
+unsigned long pollTime;
+
+struct BCTimer* itsBCTimer;
+
+struct BreathingCircuitSensor *itsBreathingCircuitSensor[3];
+
+struct MedicalDisplay* itsMedicalDisplay;
+
+};
+
+void BCPeriodicPoller_Init(BCPeriodicPoller* const me);
+
+void BCPeriodicPoller_Cleanup(BCPeriodicPoller* const me);
+
+/* Operations */ void BCPeriodicPoller_poll(BCPeriodicPoller* const me);
+
+void BCPeriodicPoller_setPollTime(BCPeriodicPoller* const me, unsigned long t);
+ 
+void BCPeriodicPoller_startPolling(BCPeriodicPoller* const me);
+
+void BCPeriodicPoller_stopPolling(BCPeriodicPoller* const me);
+
+struct BCTimer* BCPeriodicPoller_getItsBCTimer(const BCPeriodicPoller* const me);
+
+void BCPeriodicPoller_setItsBCTimer(BCPeriodicPoller* const me, struct BCTimer*
+
+p_BCTimer);
+
+int BCPeriodicPoller_getItsBreathingCircuitSensor(const BCPeriodicPoller* const me);
+
+void BCPeriodicPoller_addItsBreathingCircuitSensor(BCPeriodicPoller* const me, struct
+
+BreathingCircuitSensor * p_BreathingCircuitSensor);
+
+void BCPeriodicPoller_removeItsBreathingCircuitSensor(BCPeriodicPoller* const me,
+
+struct BreathingCircuitSensor * p_BreathingCircuitSensor);
+
+void BCPeriodicPoller_clearItsBreathingCircuitSensor(BCPeriodicPoller* const me);
+
+struct MedicalDisplay* BCPeriodicPoller_getItsMedicalDisplay(const BCPeriodicPoller*
+
+const me);
+
+void BCPeriodicPoller_setItsMedicalDisplay(BCPeriodicPoller* const me, struct MedicalDisplay* p_MedicalDisplay);
+
+BCPeriodicPoller * BCPeriodicPoller_Create(void);
+
+void BCPeriodicPoller_Destroy(BCPeriodicPoller* const me);
+
+void BCPeriodicPoller___setItsBCTimer(BCPeriodicPoller* const me, struct BCTimer*
+
+p_BCTimer);
+
+void BCPeriodicPoller__setItsBCTimer(BCPeriodicPoller* const me, struct BCTimer*
+
+p_BCTimer);
+
+void BCPeriodicPoller__clearItsBCTimer(BCPeriodicPoller* const me);
+
+#endif
+ 
+this is : BCPeriodicPoller.h
+
+#include "BCPeriodicPoller.h"
+
+#include "BCTimer.h"
+
+#include "BreathingCircuitSensor.h"
+
+#include "MedicalDisplay.h"
+
+static void cleanUpRelations(BCPeriodicPoller* const me);
+
+void BCPeriodicPoller_Init(BCPeriodicPoller* const me) { me->pollTime = DEFAULT_
+
+POLL_TIME; me->itsBCTimer = NULL;
+
+int pos;
+for(pos = 0; pos < 3; ++pos) {
+me->itsBreathingCircuitSensor[pos] = NULL;
+me->itsMedicalDisplay = NULL;
+
+BCTimer_installInterruptHandler(me->itsBCTimer);
+
+me->pollTime = DEFAULT_POLL_TIME;
+
+}
+void BCPeriodicPoller_Cleanup(BCPeriodicPoller* const me) {
+
+BCTimer_stopTimer(me->itsBCTimer);
+
+BCTimer_removeInterruptHandler(me->itsBCTimer);
+
+cleanUpRelations(me);
+
+}
+void BCPeriodicPoller_poll(BCPeriodicPoller* const me) {
+int state, data;
+data = BreathingCircuitSensor_getData(me->itsBreathingCircuitSensor[0]);
+MedicalDisplay_showO2Concentration(me->itsMedicalDisplay, data);
+data = BreathingCircuitSensor_getData(me->itsBreathingCircuitSensor[1]);
+state = BreathingCircuitSensor_getState(me->itsBreathingCircuitSensor[1]);
+MedicalDisplay_showGasFlow(me->itsMedicalDisplay, data);
+MedicalDisplay_showGasFlowStatus(me->itsMedicalDisplay, state);
+data = BreathingCircuitSensor_getData(me->itsBreathingCircuitSensor[2]);
+MedicalDisplay_showCircuitPressure(me->itsMedicalDisplay, data);
+}
+void BCPeriodicPoller_setPollTime(BCPeriodicPoller* const me, unsigned long t) {
+
+me->pollTime = t;
+
+}
+
+void BCPeriodicPoller_startPolling(BCPeriodicPoller* const me) {
+BCTimer_startTimer(me->itsBCTimer, me->pollTime);
+
+}
+
+void BCPeriodicPoller_stopPolling(BCPeriodicPoller* const me) {
+BCTimer_stopTimer(me->itsBCTimer);
+}
+struct BCTimer* BCPeriodicPoller_getItsBCTimer(const BCPeriodicPoller* const me) {
+return (struct BCTimer*)me->itsBCTimer;
+}
+void BCPeriodicPoller_setItsBCTimer(BCPeriodicPoller* const me, struct BCTimer* p_
+BCTimer) {
+if(p_BCTimer != NULL)
+{
+BCTimer__setItsBCPeriodicPoller(p_BCTimer, me);
+}
+BCPeriodicPoller__setItsBCTimer(me, p_BCTimer);
+}
+int BCPeriodicPoller_getItsBreathingCircuitSensor(const BCPeriodicPoller* const me) {
+int iter = 0;
+return iter;
+}
+void BCPeriodicPoller_addItsBreathingCircuitSensor(BCPeriodicPoller* const me, struct
+BreathingCircuitSensor * p_BreathingCircuitSensor) {
+int pos;
+for(pos = 0; pos < 3; ++pos) {
+if (!me->itsBreathingCircuitSensor[pos]) {
+me->itsBreathingCircuitSensor[pos] = p_BreathingCircuitSensor;
+break;
+}
+}
+}
+void BCPeriodicPoller_removeItsBreathingCircuitSensor(BCPeriodicPoller* const me,
+struct BreathingCircuitSensor * p_BreathingCircuitSensor) {
+int pos;
+for(pos = 0; pos < 3; ++pos) {
+if (me->itsBreathingCircuitSensor[pos] == p_BreathingCircuitSensor) {
+me->itsBreathingCircuitSensor[pos] = NULL;
+}
+}
+}
+void BCPeriodicPoller_clearItsBreathingCircuitSensor(BCPeriodicPoller* const me) {
+{
+
+int pos;
+
+for(pos = 0; pos < 3; ++pos)
+
+{
+
+me->itsBreathingCircuitSensor[pos] = NULL;
+}
+}
+}
+
+struct MedicalDisplay* BCPeriodicPoller_getItsMedicalDisplay(const BCPeriodicPoller*
+const me) {
+return (struct MedicalDisplay*)me->itsMedicalDisplay;
+}
+void BCPeriodicPoller_setItsMedicalDisplay(BCPeriodicPoller* const me, struct MedicalDisplay* p_MedicalDisplay) {
+me->itsMedicalDisplay = p_MedicalDisplay;
+}
+BCPeriodicPoller * BCPeriodicPoller_Create(void) {
+BCPeriodicPoller* me = (BCPeriodicPoller *) malloc(sizeof(BCPeriodicPoller));
+if(me!=NULL)
+{
+BCPeriodicPoller_Init(me);
+}
+return me;
+}
+void BCPeriodicPoller_Destroy(BCPeriodicPoller* const me) {
+if(me!=NULL)
+{
+BCPeriodicPoller_Cleanup(me);
+}
+free(me);
+}
+static void cleanUpRelations(BCPeriodicPoller* const me) {
+if(me->itsBCTimer != NULL)
+{
+struct BCPeriodicPoller* p_BCPeriodicPoller = BCTimer_
+getItsBCPeriodicPoller(me->itsBCTimer);
+if(p_BCPeriodicPoller != NULL)
+{
+BCTimer___setItsBCPeriodicPoller(me->itsBCTimer, NULL);
+}
+me->itsBCTimer = NULL;
+}
+if(me->itsMedicalDisplay != NULL)
+{
+me->itsMedicalDisplay = NULL;
+}
+}
+void BCPeriodicPoller___setItsBCTimer(BCPeriodicPoller* const me, struct BCTimer*
+p_BCTimer) {
+me->itsBCTimer = p_BCTimer;
+}
+void BCPeriodicPoller__setItsBCTimer(BCPeriodicPoller* const me, struct BCTimer*
+p_BCTimer) {
+if(me->itsBCTimer != NULL)
+{
+BCTimer___setItsBCPeriodicPoller(me->itsBCTimer, NULL);
+
+}
+
+BCPeriodicPoller___setItsBCTimer(me, p_BCTimer);
+
+}
+
+void BCPeriodicPoller__clearItsBCTimer(BCPeriodicPoller* const me) {
+me->itsBCTimer = NULL;
+}
+
+this is BCPeriodicPoller.c

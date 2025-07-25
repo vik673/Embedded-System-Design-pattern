@@ -1,0 +1,15 @@
+software-accessible hardware can be categorized into four kinds – infrastructure, communications, sensors, and actuators.
+
+Infrastructure hardware refers to the computing infrastructure and devices on which the software is executing. 
+This includes not only the CPU and memory, but also storage devices,
+timers, input devices (such as keyboards, knobs, and buttons), user output devices (printers,
+displays, and lights), ports, and interrupts. Most of this hardware is not particularly application
+specific and may be located on the same motherboard, on daughterboards with high-speed
+access connections, or as other boards sharing a common backplane.
+
+
+Sensors use electronic, mechanical, or chemical means for monitoring the status of
+physical phenomena, such as the rate of a heart beat, position of an aircraft, the mass of an object,
+or the concentration of a chemical. Actuators, on the other hand, change the physical state of
+some real-world element. Typical actuators are motors, heaters, generators, pumps, and switches.
+ 

@@ -1,0 +1,274 @@
+@startuml ChannelPattern_ClassDiagram
+
+!theme plain
+
+title Channel Pattern - Complete Class Diagram
+
+' Abstract base classes
+abstract class AbstractDataTransform {
+    # nextTransform : AbstractDataTransform*
+    # actuatorDriver : ActuatorDeviceDriver*
+    
+    + AbstractDataTransform()
+    + virtual ~AbstractDataTransform()
+    + {abstract} processData(data : double) : double
+    + setNextTransform(next : AbstractDataTransform*) : void
+    + setActuatorDriver(driver : ActuatorDeviceDriver*) : void
+    + getNextTransform() : AbstractDataTransform*
+    + getActuatorDriver() : ActuatorDeviceDriver*
+    # forwardData(processedData : double) : void
+}
+
+abstract class SensorDeviceDriver {
+    # isInitialized : bool
+    # errorState : int
+    
+    + SensorDeviceDriver()
+    + virtual ~SensorDeviceDriver()
+    + {abstract} readSensor() : double
+    + {abstract} isDataValid() : bool
+    + {abstract} initializeSensor() : bool
+    + {abstract} shutdownSensor() : void
+    + startProcessing() : void
+    + stopProcessing() : void
+    + getErrorState() : int
+    # setErrorState(error : int) : void
+}
+
+abstract class ActuatorDeviceDriver {
+    # isEnabled : bool
+    # lastValue : double
+    # errorState : int
+    
+    + ActuatorDeviceDriver()
+    + virtual ~ActuatorDeviceDriver()
+    + {abstract} actuate(value : double) : bool
+    + {abstract} initializeActuator() : bool
+    + {abstract} shutdownActuator() : void
+    + enable() : void
+    + disable() : void
+    + isActuatorEnabled() : bool
+    + getLastValue() : double
+    + getErrorState() : int
+    # validateValue(value : double) : bool
+    # setErrorState(error : int) : void
+}
+
+' Core Channel class
+class Channel {
+    - sensorDriver : SensorDeviceDriver*
+    - firstTransform : AbstractDataTransform*
+    - actuatorDriver : ActuatorDeviceDriver*
+    - isRunning : bool
+    - cycleCount : int
+    
+    + Channel()
+    + ~Channel()
+    + Channel_Create() : Channel*
+    + Channel_Destroy(me : Channel*) : void
+    + setSensorDriver(sensor : SensorDeviceDriver*) : void
+    + setFirstTransform(transform : AbstractDataTransform*) : void
+    + setActuatorDriver(actuator : ActuatorDeviceDriver*) : void
+    + processChannel() : bool
+    + startChannel() : bool
+    + stopChannel() : void
+    + isChannelRunning() : bool
+    + getCycleCount() : int
+    - validateConfiguration() : bool
+}
+
+' EMG Sensor Implementation
+class EMGSensorDeviceDriver {
+    - sensitivity : int
+    - noiseThreshold : double
+    - samplingRate : double
+    - currentReading : double
+    - calibrationOffset : double
+    
+    + EMGSensorDeviceDriver()
+    + ~EMGSensorDeviceDriver()
+    + EMGSensorDeviceDriver_Create() : EMGSensorDeviceDriver*
+    + EMGSensorDeviceDriver_Destroy(me : EMGSensorDeviceDriver*) : void
+    + readSensor() : double
+    + isDataValid() : bool
+    + initializeSensor() : bool
+    + shutdownSensor() : void
+    + setSensitivity(level : int) : void
+    + setNoiseThreshold(threshold : double) : void
+    + calibrate() : bool
+    + getSensitivity() : int
+    - simulateEMGReading() : double
+    - applyAmplification(rawValue : double) : double
+    - filterNoise(value : double) : double
+}
+
+' Data Transform Implementations
+class ConvertToFrequency {
+    - bufferSize : int
+    - samplingRate : double
+    - sampleBuffer : double*
+    - bufferIndex : int
+    - windowFunction : double*
+    
+    + ConvertToFrequency()
+    + ~ConvertToFrequency()
+    + ConvertToFrequency_Create() : ConvertToFrequency*
+    + ConvertToFrequency_Destroy(me : ConvertToFrequency*) : void
+    + processData(voltage : double) : double
+    + setBufferSize(size : int) : void
+    + setSamplingRate(rate : double) : void
+    + getBufferSize() : int
+    + reset() : void
+    - performFFT() : double
+    - applyWindowFunction() : void
+    - findDominantFrequency() : double
+}
+
+class MovingAverageFilter {
+    - windowSize : int
+    - sampleBuffer : double*
+    - bufferIndex : int
+    - bufferFull : bool
+    - currentAverage : double
+    
+    + MovingAverageFilter()
+    + ~MovingAverageFilter()
+    + MovingAverageFilter_Create() : MovingAverageFilter*
+    + MovingAverageFilter_Destroy(me : MovingAverageFilter*) : void
+    + processData(frequency : double) : double
+    + setWindowSize(size : int) : void
+    + getWindowSize() : int
+    + getCurrentAverage() : double
+    + reset() : void
+    - updateAverage(newValue : double) : void
+    - calculateAverage() : double
+}
+
+class CalculateColor {
+    - minFrequency : double
+    - maxFrequency : double
+    - redValue : int
+    - greenValue : int
+    - blueValue : int
+    
+    + CalculateColor()
+    + ~CalculateColor()
+    + CalculateColor_Create() : CalculateColor*
+    + CalculateColor_Destroy(me : CalculateColor*) : void
+    + processData(frequency : double) : double
+    + setFrequencyRange(min : double, max : double) : void
+    + getRedValue() : int
+    + getGreenValue() : int
+    + getBlueValue() : int
+    + getRGBValues(r : int*, g : int*, b : int*) : void
+    - frequencyToHue(frequency : double) : double
+    - hsvToRgb(h : double, s : double, v : double) : void
+    - normalizeFrequency(frequency : double) : double
+}
+
+' Light Actuator Implementation
+class LightDeviceDriver {
+    - brightness : double
+    - redChannel : int
+    - greenChannel : int
+    - blueChannel : int
+    - isLightOn : bool
+    
+    + LightDeviceDriver()
+    + ~LightDeviceDriver()
+    + LightDeviceDriver_Create() : LightDeviceDriver*
+    + LightDeviceDriver_Destroy(me : LightDeviceDriver*) : void
+    + actuate(colorValue : double) : bool
+    + initializeActuator() : bool
+    + shutdownActuator() : void
+    + setBrightness(level : double) : void
+    + setRGBValues(r : int, g : int, b : int) : void
+    + turnOn() : void
+    + turnOff() : void
+    + isLightEnabled() : bool
+    + getBrightness() : double
+    - updatePhysicalLight() : void
+    - validateRGBValues(r : int, g : int, b : int) : bool
+}
+
+' Complete EMG Channel
+class EMGChannel {
+    - channel : Channel*
+    - emgSensor : EMGSensorDeviceDriver*
+    - frequencyConverter : ConvertToFrequency*
+    - averageFilter : MovingAverageFilter*
+    - colorCalculator : CalculateColor*
+    - lightDriver : LightDeviceDriver*
+    - isInitialized : bool
+    
+    + EMGChannel()
+    + ~EMGChannel()
+    + EMGChannel_Create() : EMGChannel*
+    + EMGChannel_Destroy(me : EMGChannel*) : void
+    + initialize() : bool
+    + shutdown() : void
+    + runBiofeedback(cycles : int) : void
+    + setSensitivity(level : int) : void
+    + setBrightness(level : double) : void
+    + setFilterWindow(size : int) : void
+    + isSystemReady() : bool
+    - setupProcessingChain() : bool
+    - configureComponents() : void
+}
+
+' Inheritance relationships
+SensorDeviceDriver <|-- EMGSensorDeviceDriver
+AbstractDataTransform <|-- ConvertToFrequency
+AbstractDataTransform <|-- MovingAverageFilter
+AbstractDataTransform <|-- CalculateColor
+ActuatorDeviceDriver <|-- LightDeviceDriver
+
+' Composition relationships
+Channel *-- SensorDeviceDriver : contains
+Channel *-- AbstractDataTransform : contains
+Channel *-- ActuatorDeviceDriver : contains
+EMGChannel *-- Channel : contains
+EMGChannel *-- EMGSensorDeviceDriver : contains
+EMGChannel *-- ConvertToFrequency : contains
+EMGChannel *-- MovingAverageFilter : contains
+EMGChannel *-- CalculateColor : contains
+EMGChannel *-- LightDeviceDriver : contains
+
+' Association relationships
+AbstractDataTransform --> AbstractDataTransform : nextTransform
+AbstractDataTransform --> ActuatorDeviceDriver : actuatorDriver
+
+' Notes
+note right of Channel
+    Core Pattern Class:
+    - Orchestrates entire pipeline
+    - Manages component lifecycle
+    - Provides error handling
+    - Supports configuration validation
+end note
+
+note left of EMGChannel
+    Complete Implementation:
+    - EMG sensor → Frequency → Filter → Color → Light
+    - Demonstrates biofeedback system
+    - Real-time muscle signal processing
+    - Visual feedback through RGB lighting
+end note
+
+note top of AbstractDataTransform
+    Chain of Responsibility Pattern:
+    - Each transform processes and forwards data
+    - Flexible pipeline configuration
+    - Easy to add/remove processing stages
+    - Supports both synchronous and asynchronous processing
+end note
+
+note bottom of EMGSensorDeviceDriver
+    EMG Signal Processing:
+    - Configurable sensitivity and gain
+    - Noise threshold filtering
+    - Calibration support
+    - Simulated EMG data for testing
+end note
+
+@enduml

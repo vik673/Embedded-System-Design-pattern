@@ -1,0 +1,185 @@
+One’s Complement Pattern
+The One’s Complement Pattern is useful to detect when memory is corrupted by outside
+influences or hardware faults.
+6.2.1 Abstract
+The One’s Complement Pattern provides a detailed design pattern for the identification
+of single or multiple memory bit corruption. This can occur due to EMI (Electromagnetic
+interference), heat, hardware faults, software faults, or other external causes. The pattern
+works by storing critical data twice – once in normal form and once in one’s complement
+(bit-wise inverted) form. When the data are read, the one’s complement form is reinverted and
+then compared to the value of the normal form. If the values match, then that value is
+returned, otherwise error processing ensues.
+6.2.2 Problem
+This pattern addresses the problem that variables may be corrupted by a variety of causes such
+as environmental factors (e.g., EMI, heat, radiation), hardware faults (e.g., power fluctuation,
+memory cell faults, address line shorts), or software faults (other software erroneously modifying memory). This pattern addresses the problem of identifying data corruption for small sets
+of critical data values.
+6.2.3 Pattern Structure
+The basic pattern structure is shown in Figure 6-2. Since this is a detailed design pattern, its
+scope is primarily within a single class.
+6.2.4 Collaboration Roles
+This section describes the roles for this pattern.
+6.2.4.1 DataClient
+The DataClient is an element that either sets or retrieves the value of the datum.
+6.2.4.2 OnesCompProtectedDataElement
+The OnesCompProtectedDataElement is the class that combines the storage of the data
+with services that can detect bit-level data corruption. This class stores the values of the data
+twice; once in regular form and once as a bit-wise complement. When data are retrieved,
+inverted data are reinverted and compared to the value stored normally. If the values match, that
+value is returned; if not, the class provides a function to handle the error. The actual behavior of
+the error handler is system- and context-specific.
+6.2.5 Consequences
+This pattern uses twice the memory for storage of critical data; in addition, there is some
+performance hit on both data storage and retrieval. On the plus side, the pattern can identify
+errors due to EMI or due to stuck or shorted memory or address bits.
+6.2.6 Implementation Strategies
+This pattern is very easy to implement in C. For primitive types, the ~ operator computes the
+bit inversion. For structured types, you must iterate over the primitive parts of the data (see the
+example below).
+6.2.7 Related Patterns
+This pattern provides a very reliable way to identify faults that affect a single memory location. For
+very large data structures, the memory impact of complete data replication may be too large; in such
+cases, the Cyclic Redundancy Check (CRC) Pattern provides a reasonably reliable alternative.
+6.2.8 Example
+Figure 6-3 shows a simple application of this pattern. OwnShipAttitude stores the attitude
+(orientation, as specified in its attributes roll, pitch, and yaw) using the One’s Complement
+Pattern. When the getAttitude() function is called, it reinverts the inverted copy and
+compares it to normally stored values. If there is a difference, then the errorHandler()
+function is invoked which, in this case, calls the addAlarm() function of the AlarmHandler.
+If the values are the same, the value is returned to the client.
+The code for the OwnShipAttitude (fulfilling the role of the
+OnesCompProtectedDataElement in the pattern) is shown in Code Listing 6-1 and Code
+Listing 6-2. Note that the error code passed to the alarm manager ATTITUDE_MEMORY_FAULT
+is simply a #define-d value
+#ifndef OwnShipAttitude_H
+
+#define OwnShipAttitude_H
+
+#include "AttitudeDataType.h"
+
+struct AlarmManager;
+
+typedef struct OwnShipAttitude OwnShipAttitude;
+struct OwnShipAttitude {
+
+struct AttitudeDataType attitude;
+
+struct AttitudeDataType invertedAttitude;
+
+struct AlarmManager* itsAlarmManager;
+
+};
+void OwnShipAttitude_Init(OwnShipAttitude* const me);
+void OwnShipAttitude_Cleanup(OwnShipAttitude* const me);
+/* Operations */
+
+void OwnShipAttitude_errorHandler(OwnShipAttitude* const me);
+
+int OwnShipAttitude_getAttitude(OwnShipAttitude* const me, AttitudeDataType * aPtr);
+AttitudeDataType OwnShipAttitude_invert(OwnShipAttitude* const me, AttitudeDataType a);
+void OwnShipAttitude_setAttitude(OwnShipAttitude* const me, AttitudeDataType a);
+struct AlarmManager* OwnShipAttitude_getItsAlarmManager(const OwnShipAttitude* const me);
+void OwnShipAttitude_setItsAlarmManager(OwnShipAttitude* const
+
+me, struct AlarmManager* p_AlarmManager);
+
+OwnShipAttitude * OwnShipAttitude_Create(void);
+void OwnShipAttitude_Destroy(OwnShipAttitude* const me);
+
+#endif
+
+Code Listing 6-1: OwnShipAttitude.h
+#include "OwnShipAttitude.h"
+
+#include "AlarmManager.h"
+
+static void cleanUpRelations(OwnShipAttitude* const me);
+void OwnShipAttitude_Init(OwnShipAttitude* const me) {
+
+AttitudeDataType_Init(&(me->attitude));
+
+AttitudeDataType_Init(&(me->invertedAttitude));
+
+me->itsAlarmManager = NULL;
+
+}
+
+void OwnShipAttitude_Cleanup(OwnShipAttitude* const me) {
+ cleanUpRelations(me);
+}
+void OwnShipAttitude_errorHandler(OwnShipAttitude* const me) {
+AlarmManager_addAlarm(me->itsAlarmManager,
+ATTITUDE_MEMORY_FAULT);
+}
+int OwnShipAttitude_getAttitude(OwnShipAttitude* const me,
+AttitudeDataType * aPtr) {
+AttitudeDataType ia = OwnShipAttitude_invert(me, me- >invertedAttitude);
+if (me->attitude.roll == ia.roll && me->attitude.yaw == ia.yaw &&
+
+me->attitude.pitch == ia.pitch ) {
+
+*aPtr = me->attitude;
+
+return 1;
+
+}
+
+else {
+
+OwnShipAttitude_errorHandler(me);
+
+return 0;
+
+};
+
+}
+AttitudeDataType OwnShipAttitude_invert(OwnShipAttitude* const
+me, AttitudeDataType a) {
+a.roll = ~a.roll;
+a.yaw = ~a.yaw;
+a.pitch = ~a.pitch;
+return a;
+}
+void OwnShipAttitude_setAttitude(OwnShipAttitude* const me,
+AttitudeDataType a) {
+me->attitude = a;
+me->invertedAttitude = OwnShipAttitude_invert(me, a);
+}
+struct AlarmManager* OwnShipAttitude_getItsAlarmManager(const
+OwnShipAttitude* const me) {
+return (struct AlarmManager*)me->itsAlarmManager;
+}
+void OwnShipAttitude_setItsAlarmManager(OwnShipAttitude* const
+me, struct AlarmManager* p_AlarmManager) {
+me->itsAlarmManager = p_AlarmManager;
+}
+OwnShipAttitude * OwnShipAttitude_Create(void) {
+OwnShipAttitude* me = (OwnShipAttitude *)
+malloc(sizeof(OwnShipAttitude));
+if(me!=NULL)
+
+OwnShipAttitude_Init(me);
+
+return me;
+
+}
+
+void OwnShipAttitude_Destroy(OwnShipAttitude* const me) {
+
+if(me!=NULL)
+
+OwnShipAttitude_Cleanup(me);
+
+free(me);
+
+}
+
+static void cleanUpRelations(OwnShipAttitude* const me) {
+
+if(me->itsAlarmManager != NULL)
+
+me->itsAlarmManager = NULL;
+
+}
+
+Code Listing 6-2: OwnShipAttitude.c

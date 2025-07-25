@@ -1,0 +1,115 @@
+@startuml StateTablePattern_TableVisualization
+
+!theme plain
+title State Table Design Pattern - State Transition Table Visualization
+
+' Use table format for better visualization
+skinparam table {
+    BorderColor Black
+    BackgroundColor LightBlue
+}
+
+' Create a visual representation of the state table
+table StateTransitionTable {
+  |= **Current State** |= **EVENT_DIGIT** |= **EVENT_DOT** |= **EVENT_WHITESPACE** |= **EVENT_END_OF_STRING** |
+  | **STATE_NONUMBER** | → STATE_GOTNUMBER_WHOLE\naction_start_number | → STATE_GOTNUMBER_FRACTIONAL\naction_start_fractional | → STATE_NONUMBER\naction_none | → STATE_NONUMBER\naction_none |
+  | **STATE_GOTNUMBER_WHOLE** | → STATE_GOTNUMBER_WHOLE\naction_add_digit_whole | → STATE_GOTNUMBER_FRACTIONAL\naction_start_fractional | → STATE_NONUMBER\naction_finish_number | → STATE_NONUMBER\naction_finish_number |
+  | **STATE_GOTNUMBER_FRACTIONAL** | → STATE_GOTNUMBER_FRACTIONAL\naction_add_digit_fractional | → STATE_GOTNUMBER_FRACTIONAL\naction_none (ignore) | → STATE_NONUMBER\naction_finish_number | → STATE_NONUMBER\naction_finish_number |
+}
+
+note as Implementation
+  <b>C Implementation Structure:</b>
+  
+  typedef struct {
+      StateType nextState;
+      ActionType actionType;
+      ActionFunction actionFunc;
+  } StateTableEntry;
+  
+  StateTableEntry stateTable[STATE_MAX][EVENT_MAX] = {
+      // [STATE_NONUMBER]
+      {
+          [EVENT_DIGIT] = {STATE_GOTNUMBER_WHOLE, ACTION_START_NUMBER, action_start_number},
+          [EVENT_DOT] = {STATE_GOTNUMBER_FRACTIONAL, ACTION_START_FRACTIONAL, action_start_fractional},
+          [EVENT_WHITESPACE] = {STATE_NONUMBER, ACTION_NONE, action_none},
+          [EVENT_END_OF_STRING] = {STATE_NONUMBER, ACTION_NONE, action_none}
+      },
+      // [STATE_GOTNUMBER_WHOLE]
+      {
+          [EVENT_DIGIT] = {STATE_GOTNUMBER_WHOLE, ACTION_ADD_DIGIT_WHOLE, action_add_digit_whole},
+          [EVENT_DOT] = {STATE_GOTNUMBER_FRACTIONAL, ACTION_START_FRACTIONAL, action_start_fractional},
+          [EVENT_WHITESPACE] = {STATE_NONUMBER, ACTION_FINISH_NUMBER, action_finish_number},
+          [EVENT_END_OF_STRING] = {STATE_NONUMBER, ACTION_FINISH_NUMBER, action_finish_number}
+      },
+      // [STATE_GOTNUMBER_FRACTIONAL]
+      {
+          [EVENT_DIGIT] = {STATE_GOTNUMBER_FRACTIONAL, ACTION_ADD_DIGIT_FRACTIONAL, action_add_digit_fractional},
+          [EVENT_DOT] = {STATE_GOTNUMBER_FRACTIONAL, ACTION_NONE, action_none},
+          [EVENT_WHITESPACE] = {STATE_NONUMBER, ACTION_FINISH_NUMBER, action_finish_number},
+          [EVENT_END_OF_STRING] = {STATE_NONUMBER, ACTION_FINISH_NUMBER, action_finish_number}
+      }
+  };
+end note
+
+note as ActionDetails
+  <b>Action Function Details:</b>
+  
+  • **action_none()**: No operation
+  • **action_start_number(char c)**: 
+    - result = digit(c)
+    - tensPlace = 10.0
+  • **action_add_digit_whole(char c)**:
+    - result = result * 10 + digit(c)
+  • **action_add_digit_fractional(char c)**:
+    - result += digit(c) / tensPlace
+    - tensPlace *= 10.0
+  • **action_start_fractional()**:
+    - tensPlace = 10.0
+  • **action_finish_number()**:
+    - print("Number: " + result)
+    - prepare for next number
+end note
+
+note as PatternBenefits
+  <b>State Table Pattern Benefits:</b>
+  
+  1. **Performance**: O(1) lookup time
+  2. **Maintainability**: Easy to modify transitions
+  3. **Debuggability**: Table can be printed/analyzed
+  4. **Consistency**: All transitions follow same pattern
+  5. **Modularity**: Actions separated from state logic
+  6. **Runtime Analysis**: Statistics and tracing possible
+  7. **Memory Efficient**: Compact representation
+  8. **Thread Safe**: Atomic table lookups
+  
+  <b>Best Use Cases:</b>
+  • Well-defined state machines
+  • Performance-critical applications  
+  • Systems requiring runtime analysis
+  • Frequently changing state logic
+  • Complex state machines with many transitions
+end note
+
+' Example usage flow
+note as UsageExample
+  <b>Example Usage - Parsing "42.7":</b>
+  
+  1. **Initial**: currentState = STATE_NONUMBER
+  2. **'4'**: stateTable[STATE_NONUMBER][EVENT_DIGIT]
+     → STATE_GOTNUMBER_WHOLE, action_start_number('4')
+     → result = 4
+  3. **'2'**: stateTable[STATE_GOTNUMBER_WHOLE][EVENT_DIGIT]
+     → STATE_GOTNUMBER_WHOLE, action_add_digit_whole('2')
+     → result = 42
+  4. **'.'**: stateTable[STATE_GOTNUMBER_WHOLE][EVENT_DOT]
+     → STATE_GOTNUMBER_FRACTIONAL, action_start_fractional()
+     → tensPlace = 10.0
+  5. **'7'**: stateTable[STATE_GOTNUMBER_FRACTIONAL][EVENT_DIGIT]
+     → STATE_GOTNUMBER_FRACTIONAL, action_add_digit_fractional('7')
+     → result = 42.7, tensPlace = 100.0
+  6. **END**: stateTable[STATE_GOTNUMBER_FRACTIONAL][EVENT_END_OF_STRING]
+     → STATE_NONUMBER, action_finish_number()
+     → print("Number: 42.7")
+end note
+
+@enduml

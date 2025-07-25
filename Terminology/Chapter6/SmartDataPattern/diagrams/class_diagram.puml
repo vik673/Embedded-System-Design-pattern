@@ -1,0 +1,143 @@
+@startuml Smart_Data_Pattern_Class_Diagram
+
+title Smart Data Pattern - Class Diagram
+
+!define ENUM_COLOR #LightBlue
+!define CLASS_COLOR #LightYellow
+!define INTERFACE_COLOR #LightGreen
+
+enum ErrorCodeType <<enumeration>> ENUM_COLOR {
+    NO_ERRORS
+    BELOW_RANGE
+    ABOVE_RANGE
+    INCONSISTENT_VALUE
+    ILLEGAL_USE_OF_NULL_PTR
+    INDEX_OUT_OF_RANGE
+}
+
+enum ColorType <<enumeration>> ENUM_COLOR {
+    BLACK
+    BROWN
+    RED
+    PINK
+    BLUE
+    GREEN
+    YELLOW
+    WHITE
+}
+
+class AlarmManager CLASS_COLOR {
+    - ErrorCodeType currentAlarm
+    - int alarmCount
+    - char alarmMessage[256]
+    --
+    + void Init(AlarmManager* me)
+    + void Cleanup(AlarmManager* me)
+    + void addAlarm(AlarmManager* me, ErrorCodeType alarm)
+    + void clearAlarm(AlarmManager* me)
+    + ErrorCodeType getCurrentAlarm(AlarmManager* me)
+    + int getAlarmCount(AlarmManager* me)
+    + char* getAlarmMessage(AlarmManager* me)
+    + AlarmManager* Create()
+    + void Destroy(AlarmManager* me)
+}
+
+class SmartInt CLASS_COLOR {
+    - ErrorCodeType errorCode
+    - int highRange
+    - int lowRange
+    - int value
+    - AlarmManager* itsAlarmManager
+    --
+    + void Init(SmartInt* me, int val, int low, int high, AlarmManager* errMgr)
+    + void Cleanup(SmartInt* me)
+    + ErrorCodeType checkValidity(SmartInt* me)
+    + int cmp(SmartInt* me, SmartInt s)
+    + void errorHandler(SmartInt* me, ErrorCodeType err)
+    + ErrorCodeType getErrorCode(SmartInt* me)
+    + int getHighBoundary(SmartInt* me)
+    + int getLowBoundary(SmartInt* me)
+    + int getPrimitive(SmartInt* me)
+    + SmartInt getValue(SmartInt* me)
+    + int pCmp(SmartInt* me, SmartInt s)
+    + void setHighBoundary(SmartInt* me, int high)
+    + void setLowBoundary(SmartInt* me, int low)
+    + ErrorCodeType setPrimitive(SmartInt* me, int p)
+    + ErrorCodeType setValue(SmartInt* me, SmartInt s)
+    + AlarmManager* getItsAlarmManager(SmartInt* me)
+    + void setItsAlarmManager(SmartInt* me, AlarmManager* mgr)
+    + SmartInt* Create(int val, int low, int high, AlarmManager* errMgr)
+    + void Destroy(SmartInt* me)
+}
+
+class SmartColor CLASS_COLOR {
+    - ErrorCodeType errorCode
+    - ColorType highRange
+    - ColorType lowRange
+    - ColorType value
+    - AlarmManager* itsAlarmManager
+    --
+    + void Init(SmartColor* me, ColorType val, ColorType low, ColorType high, AlarmManager* errMgr)
+    + void Cleanup(SmartColor* me)
+    + ErrorCodeType checkValidity(SmartColor* me)
+    + int cmp(SmartColor* me, SmartColor s)
+    + void errorHandler(SmartColor* me, ErrorCodeType err)
+    + ErrorCodeType getErrorCode(SmartColor* me)
+    + ColorType getHighBoundary(SmartColor* me)
+    + ColorType getLowBoundary(SmartColor* me)
+    + ColorType getPrimitive(SmartColor* me)
+    + SmartColor getValue(SmartColor* me)
+    + int pCmp(SmartColor* me, SmartInt s)
+    + void setHighBoundary(SmartColor* me, ColorType high)
+    + void setLowBoundary(SmartColor* me, ColorType low)
+    + ErrorCodeType setPrimitive(SmartColor* me, ColorType p)
+    + ErrorCodeType setValue(SmartColor* me, SmartColor s)
+    + AlarmManager* getItsAlarmManager(SmartColor* me)
+    + void setItsAlarmManager(SmartColor* me, AlarmManager* mgr)
+    + SmartColor* Create(ColorType val, ColorType low, ColorType high, AlarmManager* errMgr)
+    + void Destroy(SmartColor* me)
+}
+
+class PatientDataClass CLASS_COLOR {
+    - SmartInt age
+    - SmartColor backgroundColor
+    - SmartColor foregroundColor
+    - SmartInt heartRate
+    - char name[100]
+    - long patientID
+    - SmartInt weight
+    --
+    + void Init(PatientDataClass* me, AlarmManager* errMgr)
+    + void Cleanup(PatientDataClass* me)
+    + ErrorCodeType checkAllData(PatientDataClass* me)
+    + int getAge(PatientDataClass* me)
+    + ColorType getBColor(PatientDataClass* me)
+    + ColorType getFColor(PatientDataClass* me)
+    + int getHeartRate(PatientDataClass* me)
+    + char* getName(PatientDataClass* me)
+    + int getWeight(PatientDataClass* me)
+    + void setAge(PatientDataClass* me, int a)
+    + void setBColor(PatientDataClass* me, ColorType bc)
+    + void setFColor(PatientDataClass* me, ColorType fc)
+    + void setHeartRate(PatientDataClass* me, int hr)
+    + void setName(PatientDataClass* me, char* n)
+    + void setWeight(PatientDataClass* me, int w)
+    + PatientDataClass* Create(AlarmManager* errMgr)
+    + void Destroy(PatientDataClass* me)
+}
+
+' Relationships
+SmartInt ||--o{ AlarmManager : uses
+SmartColor ||--o{ AlarmManager : uses
+PatientDataClass ||--o{ SmartInt : contains
+PatientDataClass ||--o{ SmartColor : contains
+SmartInt ..> ErrorCodeType : uses
+SmartColor ..> ErrorCodeType : uses
+SmartColor ..> ColorType : uses
+AlarmManager ..> ErrorCodeType : uses
+
+note right of SmartInt : Smart data type that wraps\nint primitive with range checking\nand error handling
+note right of SmartColor : Smart data type that wraps\nColorType enum with range checking\nand error handling
+note bottom of PatientDataClass : Server class that uses\nsmart data types for\nself-validating data storage
+
+@enduml

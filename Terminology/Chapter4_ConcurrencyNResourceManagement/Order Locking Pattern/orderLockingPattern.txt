@@ -1,0 +1,443 @@
+9 Ordered Locking
+The Ordered Locking Pattern is another way to ensure that deadlock cannot occur, this
+time by preventing condition 4 (circular waiting) from occurring. It does this by
+ordering the resources and requiring that they always be locked by a client in that
+specified order. If this is religiously enforced, then no circular waiting condition can ever
+occur.
+4.9.1 Abstract
+The Ordered Locking Pattern eliminates deadlock by ordering resources and enforcing a policy
+in which resources must be allocated only in a specific order. For monadic (that is, functions
+that can be used independently of others) operations, the client can invoke them without special
+consideration and the called function will lock and release the resource internally. For holding
+locks over the long term – accessing dyadic (that is, functions that require the caller to explicitly
+lock and unlock them) functions – the client must explicitly lock and release the resources,
+rather than doing it implicitly by merely invoking a service on a resource. This means that the
+potential for neglecting to unlock the resource exists
+2 Problem
+The Ordered Locking Pattern solely addresses the problem of deadlock elimination, as does the
+previous Simultaneous Locking Pattern.
+4.9.3 Pattern Structure
+Figure 4-26 shows the pattern structure for the Ordered Locking Pattern.
+Collaboration Roles
+This section describes the roles for this pattern.
+4.9.4.1 Mutex
+The Mutex is used by two other pattern elements: OrderedResource and ResourceList. Of
+course, this means that each of these elements will use different instances of the Mutex class. As
+with the other patterns in this chapter, the Mutex class provides two basic services. The lock()
+function locks the resource (if currently unlocked) or blocks the caller (if already locked). The
+release() function removes the lock and allows any blocked callers to continue.
+4.9.4.2 OrderedResource
+The OrderedResource is really the heart of the pattern. It has a resourceID attribute. This
+is a unique ID associated with each resource instance and, along with the ResourceList, this
+class enforces the ordered locking rule:
+A resource may only be locked if its resourceID is greater than the largest resourceID of any
+locked resource.
+The orderedResource may have different kinds of functions. The first kind, called monadic
+functions, internally lock the mutex, perform their magic, unlock the Mutex, and then return.
+The magic inside the function may call functions of other resources, hence the need to use the
+ResourceList to prevent possible deadlocks. Figure 4-27 shows the flow of control for such
+a monadicAccessFunction.
+The other kind of access function is dyadic, called so because it requires a separate pair of calls
+to manage the lock on the resource. That is, before a dyadic access function is called, the
+ResourceClient should first call lockDyadic() and after the ResourceClient is done
+with the resource, it should call releaseDyadic(). Because of the ordered locking enforcement, the ResourceClient can hold any number of resources in the locked state while it
+performs its work without fear of causing deadlock. However, the ResourceClient must
+lock them in the order of their resourceIDs or errors will be returned and access will be
+denied. Figure 4-28 shows the flowchart for locking the resource and Figure 4-29 shows the
+flowchart for its release.
+An interesting question arises as to how to assign the resourceIDs. In many ways, the best
+approach is to assign them at design time so that the constructor OrderedResource_Init()
+simply initializes the value. This approach requires design-time analysis to ensure that the
+resourceIDs are unique but also provides an opportunity to use a priori information to
+identify an optimal assignment of resourceIDs depending on the usage patterns of the
+various resources. Design-time analysis may discover resourceID assignments that lessen
+blocking due to deadlock prevention mechanisms (that is, if we assign the resourceIDs in
+this order, we minimize the occurrence of resource lock rejection due to potential deadlocking)
+On the other hand, this analysis may be very difficult for larger systems. However, dynamically
+assigning the resourceIDs with a resourceID server is problematic as it may lead to
+pathological conditions under which the order in which a set of resources was called in one case
+leads to the permanent failure of another ResourceClient. For this reason, I recommend
+design-time assignment of resourceIDs.
+4.9.4.3 ResourceClient
+The ResourceClient represents the set of software elements that want to invoke the
+services of the OrderedResources. The ResourceClient doesn’t need to know
+anything about the resourceIDs per se, but as a part of testing, they need to be
+designed so that they only lock the resources in the correct order. For monadic functions,
+they don’t need to do anything special – they will just invoke the
+monadicAccessFunction(). For dyadic access functions, the ResourceClient must
+explicitly lock the resource first, invoke the needed services, and then call unlock. The use
+of the dyadic form is more flexible – since the ResourceClient can hold the locks on
+any number of resources as long as it needs them – but requires additional discipline on
+the part of the developer.
+4.9.4.4 ResourceList
+This element provides two important functions. addLock()returns 0 (“ok”) if the passed
+resourceID is greater than that of the largest currently locked resource. If the passed
+referenceID is less than the largest resource ID, then POORLY_ORDERED_ACCESS is
+returned; if the passed referenceID equals it, then DUPLICATE_IDS is returned. (Note that if
+the same resource is accessed while it is locked, its mutex will block before the call is made to
+addLock(), so the only way this can occur is if the resourceID is nonunique). It is also
+important to note that there must be only one ResourceList for the application, giving the
+resourceIDs an effective global scope.
+4.9.4.5 ResourceReference
+This is just the resourceID held in an ordered list; most likely an array. It is insufficient to
+just keep the largest value only since many resources might be locked at any one time.
+4.9.5 Consequences
+This pattern effectively removes the possibility of resource-based deadlocks by removing
+the possibility of condition 4 – circular waiting. For the algorithm to work, any ordering
+of OrderedResources will do provided that this ordering is global. However, some
+orderings are better than others and will result is less blocking overall. This may take
+some analysis at design time to identify the best ordering of the OrderedResources. As
+mentioned above, if OrderedResources are themselves ResourceClients (a reasonable possibility), then they should only invoke services of OrderedResources that have
+higher valued IDs than they do. If they invoke a lower-valued OrderedResources, then
+they are in effect violating the ordered locking protocol by the transitive property of
+locking (if A locks B and then B locks C, then A is in effect locking C). This results in a
+returned error code.
+While draconian, one solution to the potential problem of transitive violation of the
+ordering policy is to enforce the rule that a OrderedResources may never invoke
+services or lock other OrderedResources. If your system design does allow such
+transitive locking, then each transitive path must be examined to ensure that the ordering
+policy is not violated.
+6 Implementation Strategies
+The implementation of the pattern requires the addition of a resourceID to each
+OrderedResource and logic in the ResourceList to ensure that the resourceID of each
+OrderedResource is larger than any currently locked resourceID. In addition, a list of
+locked resourceIDs must be maintained so that as OrderedResources are released,
+additional ones can be locked appropriately.
+The most common implementation for the ResourceList is as an array of integers representing the resourceIDs in the order in which they are locked.
+4.9.7 Related Patterns
+This pattern is specifically designed to remove the possibilities of deadlocks. The Simultaneous
+Locking Pattern also does this, although through the different mechanism of preventing
+condition 2 (some resources are locked while others are requested). The Critical Region Pattern
+also removes the possibility of deadlock by preventing condition 3 (preemption while resources
+are locked is allowed). The Cyclic Executive Pattern avoids deadlock by preventing condition 1
+(mutual exclusion locking of resources).
+4.9.8 Example
+The example in Figure 4-30 shows an application of the Ordered Locking Pattern. In this
+(simplified) aircraft example, three servers hold related, but distinct information;
+AttitudeSensor has information about the attitude (roll, pitch, and yaw) of the aircraft,
+PositionSensor has information about where the aircraft is in the airspace (latitude, longitude, and altitude), and the VelocitySensor has information about how fast the aircraft is
+moving in three dimensions.
+The example has two different clients. The KinematicModelClient needs to get timecoherent information about the state of the aircraft for the purpose of precise and detailed
+control of actuators and engines. The RoutePlanningClient needs the same information to
+determine updates to the route depending on fuel usage, threat assessments, mission criticality,
+and so on.
+Let’s suppose, for the purpose of this discussion that for both the clients it is crucial to get
+data in the same sample interval. A way to do that is to lock all the resources, gather and
+manipulate the data, and then release all the resources. If the KinematicModel locks them in
+the order 1) PositionSensor, 2) VelocitySensor, and 3) AttitudeSensor but the
+RoutePlanningClient (done by a different subcontractor) locks them in the reverse
+order, there is an opportunity for deadlock. Ergo, we’ve added the Ordered Locking Pattern
+to specifically prevent deadlock. We’ve also used the dyadic form of the pattern so the
+clients are expected to manually lock the resources before use and release the resources
+once done.
+Note that the mutex class shows up multiple times in the diagram. This is done to minimize line
+crossing in the diagram. There is a single mutex class, but four distinct instances of that class,
+each providing a separate locking semaphore for its owner.
+I’ve included the code for two of the classes, the VelocitySensor and the ResourceList
+to illustrate how this pattern may be implemented. The error codes are simply implemented in
+the OrdseredLockingExample.h file as
+#define POORLY_ORDERED_ACCESS (1)
+
+#define DUPLICATED_IDS (2)
+
+Code Listing 4-48 has the VelocitySensor.h code and Code Listing 4-49 has the corresponding
+C code.
+#ifndef VelocitySensor_H
+
+#define VelocitySensor_H
+
+/* brings in the error codes */
+
+#include "OrderedLockingExample.h"
+
+#include "Velocity.h"
+
+struct Mutex;
+
+struct ResourceList;
+
+typedef struct VelocitySensor VelocitySensor;
+
+struct VelocitySensor {
+
+int resourceID;
+
+struct Velocity velocity;
+
+struct Mutex* itsMutex;
+
+struct ResourceList* itsResourceList;
+
+};
+
+void VelocitySensor_Init(VelocitySensor* const me);
+
+void VelocitySensor_Cleanup(VelocitySensor* const me);
+
+/* Operations */
+
+struct Velocity VelocitySensor_getVelocity(VelocitySensor* const me);
+int VelocitySensor_lockDyadic(VelocitySensor* const me);
+void VelocitySensor_releaseDyadic(VelocitySensor* const me);
+void VelocitySensor_setVelocity(VelocitySensor* const me, struct Velocity v);
+struct Mutex* VelocitySensor_getItsMutex(const VelocitySensor* const me);
+void VelocitySensor_setItsMutex(VelocitySensor* const me, struct Mutex* p_Mutex);
+struct ResourceList* VelocitySensor_getItsResourceList(const
+VelocitySensor* const me);
+void VelocitySensor_setItsResourceList(VelocitySensor* const me,
+
+struct ResourceList* p_ResourceList);
+
+VelocitySensor * VelocitySensor_Create(void);
+
+void VelocitySensor_Destroy(VelocitySensor* const me);
+
+#endif
+
+Code Listing 4-24: VelocitySensor.h
+#include "VelocitySensor.h"
+
+#include "Mutex.h"
+
+#include "ResourceList.h"
+
+static void cleanUpRelations(VelocitySensor* const me);
+
+void VelocitySensor_Init(VelocitySensor* const me) {
+me->resourceID = 2;
+{
+Velocity_Init(&(me->velocity));
+}
+me->itsMutex = NULL;
+me->itsResourceList = NULL;
+}
+void VelocitySensor_Cleanup(VelocitySensor* const me) {
+cleanUpRelations(me);
+}
+struct Velocity VelocitySensor_getVelocity(VelocitySensor* const me) {
+return me->velocity;
+}
+int VelocitySensor_lockDyadic(VelocitySensor* const me) {
+int ok;
+Mutex_lock(me->itsMutex);
+
+ok = ResourceList_addLock(me->itsResourceList, me->resourceID);
+
+if (ok != 0)
+
+Mutex_release(me->itsMutex);
+return ok;
+}
+void VelocitySensor_releaseDyadic(VelocitySensor* const me) {
+ResourceList_removeLock(me->itsResourceList, me->resourceID);
+Mutex_release(me->itsMutex);
+}
+void VelocitySensor_setVelocity(VelocitySensor* const me, struct Velocity v) {
+me->velocity = v;
+}
+struct Mutex* VelocitySensor_getItsMutex(const VelocitySensor* const me) {
+return (struct Mutex*)me->itsMutex;
+}
+void VelocitySensor_setItsMutex(VelocitySensor* const me, struct Mutex* p_Mutex) {
+me->itsMutex = p_Mutex;
+}
+struct ResourceList* VelocitySensor_getItsResourceList(const
+
+VelocitySensor* const me) {
+
+return (struct ResourceList*)me->itsResourceList;
+
+}
+
+void VelocitySensor_setItsResourceList(VelocitySensor* const me,
+
+struct ResourceList* p_ResourceList) {
+
+me->itsResourceList = p_ResourceList;
+
+}
+
+VelocitySensor * VelocitySensor_Create(void) {
+
+VelocitySensor* me = (VelocitySensor *)
+
+malloc(sizeof(VelocitySensor));
+
+if(me!=NULL)
+
+VelocitySensor_Init(me);
+
+return me;
+
+}
+
+void VelocitySensor_Destroy(VelocitySensor* const me) {
+
+if(me!=NULL)
+
+VelocitySensor_Cleanup(me);
+
+free(me);
+
+}
+static void cleanUpRelations(VelocitySensor* const me) {
+
+if(me->itsMutex != NULL)
+
+me->itsMutex = NULL;
+
+if(me->itsResourceList != NULL)
+
+me->itsResourceList = NULL;
+
+}
+
+Code Listing 4-49: VelocitySensor.c
+Of course, the key class for this pattern is the ResourceList. ResourceList.h is in Code Listing
+4-50 with the corresponding C file shown in Code Listing 4-51.
+#ifndef ResourceList_H
+
+#define ResourceList_H
+
+#include "OrderedLockingExample.h"
+
+struct Mutex;
+
+typedef struct ResourceList ResourceList;
+struct ResourceList {
+
+int nIDs;
+
+int rIDList[20];
+
+struct Mutex* itsMutex;
+
+};
+/* Constructors and destructors:*/
+
+void ResourceList_Init(ResourceList* const me);
+
+void ResourceList_Cleanup(ResourceList* const me);
+
+/* Operations */
+
+int ResourceList_addLock(ResourceList* const me, int rID);
+
+/* The elements are added in order but */
+
+/* can be removed in any order. Therefore, */
+
+/* the stored resoiurceIDs above the current */
+
+/* one in the list must be moved down to */
+
+/* lower in the list. */
+
+void ResourceList_removeLock(ResourceList* const me, int rID);
+
+struct Mutex* ResourceList_getItsMutex(const ResourceList* const me);
+void ResourceList_setItsMutex(ResourceList* const me, struct Mutex* p_Mutex);
+ResourceList * ResourceList_Create(void);
+void ResourceList_Destroy(ResourceList* const me);
+#endif
+Code Listing 4-50: ResourceList.h
+#include "ResourceList.h"
+
+#include "Mutex.h"
+
+static char isInOrder(ResourceList* const me, int rID);
+static void cleanUpRelations(ResourceList* const me);
+void ResourceList_Init(ResourceList* const me) {
+
+me->nIDs = 0;
+
+me->itsMutex = NULL;
+
+}
+void ResourceList_Cleanup(ResourceList* const me) {
+
+cleanUpRelations(me);
+
+}
+
+int ResourceList_addLock(ResourceList* const me, int rID) {
+
+int retVal;
+
+Mutex_lock(me->itsMutex);
+
+if (isInOrder(me,rID)) {
+
+me->rIDList[me->nIDs++] = rID;
+
+retVal = 0;
+
+}
+
+else
+
+if (rID == me->rIDList[me->nIDs])
+
+retVal = DUPLICATED_IDS;
+
+else
+
+retVal = POORLY_ORDERED_ACCESS;
+
+Mutex_release(me->itsMutex);
+
+return retVal;
+
+}
+void ResourceList_removeLock(ResourceList* const me, int rID) {
+int j,k;
+if (me->nIDs) {
+
+for (j=0; j<me->nIDs; j++) {
+
+if (rID == me->rIDList[j]) {
+
+for (k=j; k<me->nIDs-1; k++)
+
+me->rIDList[k] = me->rIDList[k+1];
+–me->nIDs;
+break;
+};
+};
+};
+}
+static char isInOrder(ResourceList* const me, int rID) {
+if (me->nIDs)
+return rID > me->rIDList[me->nIDs-1];
+else
+return 1;
+}
+struct Mutex* ResourceList_getItsMutex(const ResourceList* const me) {
+return (struct Mutex*)me->itsMutex;
+}
+void ResourceList_setItsMutex(ResourceList* const me, struct Mutex* p_Mutex) {
+me->itsMutex = p_Mutex;
+}
+ResourceList * ResourceList_Create(void) {
+ResourceList* me = (ResourceList *)
+malloc(sizeof(ResourceList));
+if(me!=NULL)
+ResourceList_Init(me);
+return me;
+}
+void ResourceList_Destroy(ResourceList* const me) {
+if(me!=NULL)
+ResourceList_Cleanup(me);
+free(me);
+
+}
+
+static void cleanUpRelations(ResourceList* const me) {
+
+if(me->itsMutex != NULL)
+
+me->itsMutex = NULL;
+
+}
+
+Code Listing 4-51: ResourceList.c

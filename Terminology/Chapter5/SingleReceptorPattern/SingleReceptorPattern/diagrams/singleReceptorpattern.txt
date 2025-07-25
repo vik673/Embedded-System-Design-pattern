@@ -1,0 +1,727 @@
+Single Event Receptor Pattern
+Single event receptor state machines (henceforth known as SERSMs) can be used for both
+synchronous and asynchronous events.
+5.3.1 Abstract
+The Single Event Receptor Pattern relies on a single event receptor to provide the interface
+between the clients and the state machine. Internally, this single event receptor must accept an
+event data type that not only identifies which event has occurred but also any data that
+accompanies the event. This pattern may be used in synchronous state machines – receiving
+events directly from the clients – or asynchronous, via an intermediate event queue.
+5.3.2 Problem
+This pattern addresses the problem of providing simple implementation of a state machine that
+applies to both synchronous and asynchronous event delivery.
+5.3.3 Pattern Structure
+This pattern can be used in two ways – for either asynchronous or for synchronous state
+machines. The asynchronous version context for this pattern is shown in Figure 5-13. In this
+case, it should be noted that at the end of the TSREventQueue_post() function, the OS
+function postSignal() is called. The code for the post() function is given in Code Listing 5­
+4. On the state machine side, the asynchronous version of the state machine receptor class has a
+task loop that waits for the signal, indicating that an event has been queued, and then iterates
+over all queued events. That code is shown in Code Listing 5-5.
+The synchronous version of the pattern is shown in Figure 5-14. The most notable differences
+between the two is the absence of the event queue and that the class that owns the state machine
+TokenizeSyncSingleReceptor has an association to a mutex to ensure run-to-completion
+semantics for the state machine actions. Note that the state machine class has many operations but
+the only one called by the client is TokenizerSyncSingleReceptor_eventDispatch().
+Internally, this function will determine which event is being passed and process the incoming
+event.
+5.3.4 Collaboration Roles
+This section describes the roles for this pattern.
+5.3.4.1 Event
+The event is a struct that contains an attribute to identify the type of the event and other data
+that is passed along with the different events. This is normally implemented as a union in C.
+5.3.4.2 EventType
+The EventType is an enumerated type for the events. Alternatively, ints can be used but I
+recommend enums as being more informative.
+5.3.4.3 Mutex
+For the asynchronous version of the state machine, the Mutex ensures the integrity of the
+TSREventQueue in the case that multiple clients are simultaneously trying to post events or if
+a client tries to post an event while the state machine class is removing one.
+For the synchronous version of the pattern, the mutex ensures the deterministic run-to-completion semantics of transitions by preventing other clients from interrupting the state machine
+execution of an action sequence. This is accomplished by locking the semaphore before the
+event is processed and releasing it once the transition processing is complete.
+5.3.4.4 TokenizerAsyncSingleReceptor
+This element is the owner and implementer of the desired state machine (see Figure 5-12). It
+has two kinds of attributes: those involved with the intent of the state machine (such as result)
+and those involved with the management of the state machine (such as stateID). Of the former
+type, we find:
+•	 result which holds the current value of the number being parsed
+•	 tensPlace which is used in computing fractional parts of numbers, as in 0.345 of the
+number 10.345
+•	 ch which holds the current character being processed
+Of the latter type, we see:
+•	 stateID which stores the current high level state (NULL_STATE, NONUMBER_STATE, or
+GOTNUMBER_STATE)
+•	 subStateID which stores the current substate (NULL_SSTATE,
+PROCESSINGWHOLEPART_SSTATE, or PROCESSINGFRACTIONALPART_SSTATE)
+These values are defined in the enumerated types TSTATETYPE and TSUBSTATETYPE,
+respectively.
+Functions of this state machine are likewise of three types. The first is the task loop that
+pends on the signal (which is posted when an event is enqueued). The second is the
+eventDispatch that identifies and processes the event. The third type of operations are for
+the entry and exit actions of the states. Note that the transitions actions are all embedded
+within the event-receptors since they only occur once, but there are often many paths into
+and out of a state, so we explicitly create entry and exit functions for each state, making
+them reusable.
+5.3.4.5 TokenizerSyncSingleReceptor
+This class is exactly like the previously described TokenizerAsyncSingleReceptor
+except that 1) it does not have a task loop because it is invoked synchronously, and 2) it uses a
+mutex to enforce run-to-completion semantics of its state machine. The only function directly
+invoked by the client is TokenizerSyncSingleReceptor_eventDispatch().
+5.3.4.6 TSRClient
+This is the client of the state machine. For the asynchronous version, it queues the event by calling
+TSREventQueue_post() function using an instance of the event type as the passed parameter.
+For the synchronous case, it invokesthe single event receptor TokenizerSyncSingleReceptor
+and passes the appropriate event (and associated data) as typed with the event type.
+5.3.4.7 TSREventQueue
+This is a queue that holds events. It is only used in the asynchronous event processing case, to
+hold the incoming events until the state machine gets around to processing them. It provides
+two primary functions. The TSREventQueue_post() function enqueues an event and signals
+the OS that an event has arrived. The TSREventQueue_pull() function is invoked by the
+TSRAsyncSingleReceptor class to get the next pending event.
+5.3.4.8 TSTATE
+TSTATE is an enumerated type of the high-level states.
+5.3.4.9 TSUBSTATE
+TSUBSTATE is an enumerated type of the nested states. In this case, there are only two levels of
+nesting. If there were more, then more enumerated types could be added.
+5.3.5 Consequences
+This pattern provides a straightforward state machine implementation easily adapted to either
+synchronous or asynchronous state machine event passing. The fact that all the state logic is
+encapsulated within a single event receptor limits the scalability of the approach.
+5.3.6 Implementation Strategies
+It should be noted that one way of implementing this pattern is by simply taking a Multiple
+Event Receptor Pattern and adding a single publicly available event receptor (to be invoked by
+clients) that calls the multiple event receptors already present. You’ll still need to create the
+abstract event type to be passed into the single event receptor. This is one way to take a
+synchronous state machine done using that pattern and enabling it to be used in an asynchronous way – add an event queue, a polling mechanism to look for new events, a single event
+receptor and you can use it without other modification.
+A more common implementation of the Single Event Receptor Pattern is to encode all the logic
+in a big switch-case statement within the single event receptor.
+5.3.7 Related Patterns
+The synchronous version of the pattern uses the Guarded Call Pattern (see Chapter 4) to ensure
+deterministic run-to-completion of transitions while the asynchronous version uses the Queuing
+Pattern. The Critical Region Pattern can be used instead for either synchronous or asynchronous state machines to ensure the run-to-completion semantics.
+5.3.8 Example
+The asynchronous version differs in a couple of ways from the synchronous version. First, let’s
+consider what is special about the asynchronous version.
+The most obvious difference is, of course, the presence of the TSREventQueue. The clients
+don’t invoke the event receptor on the state machine directly; instead they send the events to the
+event queue, which then posts the signal to the OS on which the state machine pends (see Code
+Listing 5-4). The state machine class has its own task processing loop that waits for the signal to
+be posted, and when it is, loops to remove and process all events that are currently queued
+(Code Listing 5-5).
+int TSREventQueue_post(Event e) {
+
+Mutex_lock(me->itsMutex);
+
+if (!TSRQueue_isFull(me)) {
+
+me->q[me->head] = e;
+
+me->head = (me->head + 1) % QSIZE;
+
+me->size += 1;
+
+Mutex_release(me->itsMutex);
+
+postSignal(); /* signal that an event is present */
+
+return 1;
+
+}
+else {
+
+Mutex_release(me->itsMutex);
+
+return 0;
+
+};
+
+};
+Code Listing 5-4: TSREventQueue_post() function
+void TokenizerAsyncSingleReceptor_taskLoop() {
+while (1) {
+
+waitOnSignal(); /* wait until event occurs */
+
+while (! TSREventQueue_isEmpty(me->itsTSREventQueue)) {
+
+TokenizerAsyncSingleReceptor_eventDispatch(
+
+TSREventQueue_pull(me->itsTSREventQueue));
+
+}
+
+}
+
+}
+ 
+
+Code Listing 5-5: TokenizeAsyncSingleReceptor_taskLoop() function
+Code Listing 5-1 shows the enumerated types and other definitions used by the elements of the
+pattern.
+/* this is the size of the event queue */
+
+#define QSIZE 100
+
+typedef enum EventType {
+
+EVDIGIT,
+
+EVDOT,
+
+EVWHITESPACE,
+
+EVENDOFSTRING
+
+} EventType;
+typedef struct {
+
+EventType eType;
+
+union eventData {
+
+char c;
+
+} ed;
+ 
+ } Event;
+typedef enum TSTATETYPE {
+
+NULL_STATE,
+
+NONUMBER_STATE,
+
+GOTNUMBER_STATE
+
+} TSTATETYPE;
+typedef enum TSUBSTATETYPE {
+
+NULL_SSTATE,
+
+PROCESSINGWHOLEPART_SSTATE,
+
+PROCESSINGFRACTIONALPART_SSTATE
+
+} TSUBSTATETYPE;
+/* helper function returns the digit */
+
+/* held by a char */
+
+int digit(char c) {
+
+return c-'0';
+
+}
+
+/*
+
+OS signal and wait functions for
+
+task synchronization
+
+*/
+void postSignal(void);
+
+void waitOnSignal(void);
+
+Code Listing 5-6: TokenizeAsyncSinglePkg.h
+Code Listing 5-7 and Code Listing 5-8 show the code for the event queue used in the pattern.
+#include "TokenizerAsyncSinglePkg.h"
+struct Mutex;
+typedef struct TSREventQueue TSREventQueue;
+struct TSREventQueue {
+
+Event q[100];
+
+int size;
+
+int head;
+
+int tail;
+
+struct Mutex* itsMutex;
+
+};
+/* Constructors and destructors:*/
+
+void TSREventQueue_Init(TSREventQueue* const me);
+
+void TSREventQueue_Cleanup(TSREventQueue* const me);
+/* Operations */
+void TSREventQueue_isEmpty(TSREventQueue* const me);
+
+int TSREventQueue_isFull(TSREventQueue* const me);
+
+/* puts the passed event in */
+
+/* the event queue and then */
+/* calls the event receptor of */
+
+/* the state machine. Note */
+
+/* if the queue overflows an */
+
+/* error code (1) is returned. */
+
+int TSREventQueue_post(TSREventQueue* const me, Event e);
+
+/* It is assumed that the caller has */
+
+/* ensured that there is at least one */
+
+/* event in the queue (via the isEmpty() */
+
+/* funtion) prior to calling this function. */
+
+/* Otherwise they get a default event. */
+
+Event TSREventQueue_pull(TSREventQueue* const me);
+
+struct Mutex* TSREventQueue_getItsMutex(const TSREventQueue* const me);
+void TSREventQueue_setItsMutex(TSREventQueue* const me, struct Mutex* p_Mutex);
+TSREventQueue * TSREventQueue_Create(void);
+void TSREventQueue_Destroy(TSREventQueue* const me);
+#endif
+Code Listing 5-7: TSREventQueue.h
+#include "TSREventQueue.h"
+
+#include "Mutex.h"
+
+static void cleanUpRelations(TSREventQueue* const me);
+void TSREventQueue_Init(TSREventQueue* const me) {
+
+me->head = 0;
+
+me->size = 0;
+
+me->tail = 0;
+
+me->itsMutex = NULL;
+
+}
+void TSREventQueue_Cleanup(TSREventQueue* const me) {
+
+cleanUpRelations(me);
+
+}
+
+void TSREventQueue_isEmpty(TSREventQueue* const me) {
+
+return me->size <= 0;
+
+}
+
+int TSREventQueue_isFull(TSREventQueue* const me) {
+
+return me->size >= QSIZE-1;
+
+}
+
+/* post enqueues an event and signals that fact */
+int TSREventQueue_post(TSREventQueue* const me, Event e) {
+
+Mutex_lock(me->itsMutex);
+
+if (!TSRQueue_isFull(me)) {
+
+me->q[me->head] = e;
+
+me->head = (me->head + 1) % QSIZE;
+
+me->size += 1;
+
+Mutex_release(me->itsMutex);
+ 
+ postSignal(); /* signal that an event is present */
+
+return 1;
+
+}
+
+else {
+
+Mutex_release(me->itsMutex);
+
+return 0;
+
+};
+
+}
+/* pulls removes the oldest event from the queue */
+
+/* pull should only be called when there is an event waiting */
+
+Event TSREventQueue_pull(TSREventQueue* const me) {
+
+Event e;
+
+Mutex_lock(me->itsMutex);
+
+if (!TSREventQueue_isEmpty(me)) {
+
+e = me->q[me->tail];
+
+me->tail = (me->tail + 1) % QSIZE
+
+size -= 1;
+
+};
+
+Mutex_release(me->itsMutex);
+
+return e;
+
+}
+struct Mutex* TSREventQueue_getItsMutex(const TSREventQueue* const me) {
+
+return (struct Mutex*)me->itsMutex;
+
+}
+
+void TSREventQueue_setItsMutex(TSREventQueue* const me, struct Mutex* p_Mutex) {
+
+me->itsMutex = p_Mutex;
+
+}
+
+TSREventQueue * TSREventQueue_Create(void) {
+
+TSREventQueue* me = (TSREventQueue *) malloc(sizeof(TSREventQueue));
+
+if(me!=NULL)
+
+TSREventQueue_Init(me);
+
+return me;
+
+}
+void TSREventQueue_Destroy(TSREventQueue* const me) {
+
+if(me!=NULL)
+
+TSREventQueue_Cleanup(me);
+
+free(me);
+
+}
+static void cleanUpRelations(TSREventQueue* const me) {
+
+if(me->itsMutex != NULL)
+
+me->itsMutex = NULL;
+
+}
+Code Listing 5-8: TSREventQueue.c
+Of course, the real action here takes place in the class with the state machine. In this case, we’ll
+show just the code for the asynchronous version in Code Listing 5-9 and Code Listing 5-10.
+#include <stdio.h>
+
+#include "TokenizerSyncSingleReceptorPkg.h"
+
+struct Mutex;
+
+typedef struct TokenizerSyncSingleReceptor TokenizerSyncSingleReceptor;
+
+struct TokenizerSyncSingleReceptor {
+char ch;
+double result;
+TSTATETYPE stateID;
+TSUBSTATETYPE subStateID;
+double tensPlace;
+struct Mutex* itsMutex;
+};
+
+void
+
+TokenizerSyncSingleReceptor_enter_GotNumber(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_enter_NoNumber(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_enter_ProcessingFractionalPart(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_enter_ProcessingWholePart(TokenizerSyncSingleReceptor*
+
+const me);
+
+void
+
+TokenizerSyncSingleReceptor_exit_GotNumber(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_exit_NoNumber(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_exit_ProcessingFractionalPart(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_exit_ProcessingWholePart(TokenizerSyncSingleReceptor*
+
+const me);
+
+void
+
+TokenizerSyncSingleReceptor_Init(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_Cleanup(TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_eventDispatch(TokenizerSyncSingleReceptor* const me,
+
+Event e);
+
+struct Mutex* TokenizerSyncSingleReceptor_getItsMutex(const TokenizerSyncSingleReceptor* const me);
+
+void
+
+TokenizerSyncSingleReceptor_setItsMutex(TokenizerSyncSingleReceptor* const me, struct
+
+Mutex* p_Mutex);
+TokenizerSyncSingleReceptor *
+
+TokenizerSyncSingleReceptor_Create(void);
+
+void
+
+TokenizerSyncSingleReceptor_Destroy(TokenizerSyncSingleReceptor* const me);
+
+#endif
+Code Listing 5-9: TSRSyncSingleReceptor.h
+#include "TSRSyncSingleReceptor.h"
+
+#include "Mutex.h"
+
+void
+TokenizerSyncSingleReceptor_enter_GotNumber(TokenizerSyncSingleReceptor* const me) {
+me->tensPlace = 10.0;
+}
+void
+TokenizerSyncSingleReceptor_enter_NoNumber(TokenizerSyncSingleReceptor* const me) {
+me->result = 0.0;
+}
+void
+TokenizerSyncSingleReceptor_enter_ProcessingFractionalPart(TokenizerSyncSingle
+Receptor* const me) {
+/* enter appropriate actions, if any here */
+
+}
+
+void
+TokenizerSyncSingleReceptor_enter_ProcessingWholePart(TokenizerSyncSingleReceptor*
+const me) {
+me->result = me->result*10 + digit(me->ch);
+
+}
+
+void
+TokenizerSyncSingleReceptor_exit_GotNumber(TokenizerSyncSingleReceptor* const me) {
+me->subStateID = NULL_SSTATE;
+}
+void
+TokenizerSyncSingleReceptor_exit_NoNumber(TokenizerSyncSingleReceptor* const me) {
+/* enter appropriate actions, if any here */
+}
+void
+
+TokenizerSyncSingleReceptor_exit_ProcessingFractionalPart(TokenizerSyncSingle
+
+Receptor* const me) {
+
+/* enter appropriate actions, if any here */
+
+}
+void
+TokenizerSyncSingleReceptor_exit_ProcessingWholePart(TokenizerSyncSingleReceptor*
+const me) {
+/* enter appropriate actions, if any here */
+
+}
+void
+TokenizerSyncSingleReceptor_Init(TokenizerSyncSingleReceptor* const me) {
+me->ch = 'x';
+me->result = 0.0;
+me->tensPlace = 10.0;
+me->itsMutex = NULL;
+me->stateID = NONUMBER_STATE;
+me->subStateID = NULL_SSTATE;
+}
+void
+
+TokenizerSyncSingleReceptor_eventDispatch(TokenizerSyncSingleReceptor* const me,
+
+Event e) {
+
+Mutex_lock(me->itsMutex);
+
+switch (e.eType) {
+
+case EVDIGIT:
+
+switch (me->stateID) {
+
+case NONUMBER_STATE:
+
+/* transition to GotNumber state, default substate */
+
+TokenizerSyncSingleReceptor_exit_NoNumber(me);
+
+me->ch = e.ed.c;
+
+TokenizerSyncSingleReceptor_enter_GotNumber(me);
+
+me->stateID = GOTNUMBER_STATE;
+
+TokenizerSyncSingleReceptor_enter_ProcessingWholePart(me);
+me->subStateID = PROCESSINGWHOLEPART_SSTATE;
+printf("Current value of result: %g\n", me->result);
+break;
+case GOTNUMBER_STATE:
+
+switch (me->subStateID) {
+
+case PROCESSINGWHOLEPART_SSTATE:
+
+TokenizerSyncSingleReceptor_exit_ProcessingWholePart(me);
+me->ch = e.ed.c;
+TokenizerSyncSingleReceptor_enter_ProcessingWholePart(me);
+printf("Current value of result: %g\n", me->result);
+break;
+case PROCESSINGFRACTIONALPART_SSTATE:
+TokenizerSyncSingleReceptor_exit_ProcessingFractionalPart(me);
+me->ch = e.ed.c;
+me->result += digit(me->ch) / me->tensPlace;
+me->tensPlace *= 10.0;
+TokenizerSyncSingleReceptor_enter_ProcessingFractionalPart(me);
+printf("Current value of result: %g\n", me->result);
+break;
+};
+
+};
+
+break;
+
+case EVDOT:
+
+me->ch = ’.’;
+ 
+ switch (me->stateID) {
+
+case NONUMBER_STATE:
+
+/* transition to GotNumber state, default substate */
+
+TokenizerSyncSingleReceptor_exit_NoNumber(me);
+TokenizerSyncSingleReceptor_enter_GotNumber(me);
+
+me->stateID = GOTNUMBER_STATE;
+
+TokenizerSyncSingleReceptor_enter_ProcessingFractionalPart(me);
+me->subStateID = PROCESSINGFRACTIONALPART_SSTATE;
+break;
+case GOTNUMBER_STATE:
+switch (me->subStateID) {
+case PROCESSINGWHOLEPART_SSTATE:
+TokenizerSyncSingleReceptor_exit_ProcessingWholePart(me);
+TokenizerSyncSingleReceptor_enter_ProcessingFractionalPart(me);
+me->subStateID = PROCESSINGFRACTIONALPART_SSTATE;
+break;
+};
+};
+break;
+
+case EVWHITESPACE:
+
+case EVENDOFSTRING:
+
+switch (me->stateID) {
+
+case GOTNUMBER_STATE:
+
+switch (me->subStateID) {
+
+case PROCESSINGWHOLEPART_SSTATE:
+
+TokenizerSyncSingleReceptor_exit_ProcessingWholePart(me);
+break;
+case PROCESSINGFRACTIONALPART_SSTATE:
+TokenizerSyncSingleReceptor_exit_ProcessingFractionalPart(me);
+break;
+};
+
+TokenizerSyncSingleReceptor_exit_GotNumber(me);
+
+printf("Number: %g\n", me->result);
+
+TokenizerSyncSingleReceptor_enter_NoNumber(me);
+
+me->stateID = NONUMBER_STATE;
+
+break;
+
+};
+break;
+}; // end switch e.eType
+Mutex_release(me->itsMutex);
+}
+struct Mutex* TokenizerSyncSingleReceptor_getItsMutex(const TokenizerSyncSingleReceptor*
+const me) {
+return (struct Mutex*)me->itsMutex;
+}
+void
+TokenizerSyncSingleReceptor_setItsMutex(TokenizerSyncSingleReceptor* const me, struct
+Mutex* p_Mutex) {
+me->itsMutex = p_Mutex;
+
+}
+
+TokenizerSyncSingleReceptor *
+TokenizerSyncSingleReceptor_Create(void) {
+TokenizerSyncSingleReceptor* me = (TokenizerSyncSingleReceptor *) malloc(sizeof
+(TokenizerSyncSingleReceptor));
+
+if(me!=NULL)
+
+TokenizerSyncSingleReceptor_Init(me);
+
+return me;
+
+}
+void
+TokenizerSyncSingleReceptor_Destroy(TokenizerSyncSingleReceptor* const me) {
+
+if(me!=NULL)
+
+TokenizerSyncSingleReceptor_Cleanup(me);
+
+free(me);
+
+}
+static void cleanUpRelations(TokenizerSyncSingleReceptor* const me) {
+
+if(me->itsMutex != NULL)
+
+me->itsMutex = NULL;
+
+}
+void
+
+TokenizerSyncSingleReceptor_Cleanup(TokenizerSyncSingleReceptor* const me) {
+
+cleanUpRelations(me);
+
+}
+
+Code Listing 5-10: TSRSyncSingleReceptor.c
+

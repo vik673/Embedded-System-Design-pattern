@@ -1,0 +1,293 @@
+Debouncing Pattern
+This simple pattern is used to reject multiple false events arising from intermittent contact of
+metal surfaces.
+
+Abstract
+Push buttons, toggle switches, and electromechanical relays are input devices for digital
+systems that share a common problem – as metal connections make contact, the metal deforms
+or “bounces”, producing intermittent connections during switch open or closure. Since this
+happens very slowly (order of milliseconds) compared to the response speed of embedded
+systems (order of microseconds or faster), this results in multiple electronic signals to the
+control system. This pattern addresses this concern by reducing the multiple signals into a
+single one by waiting a period of time after the initial signal and then checking the state.
+3.6.2 Problem
+Many input devices for embedded systems use metal-on-metal contact to indicate events of
+interest, such as button presses, switch movement, and activating or deactivating relays. As the
+metal moves into contact, physical deformation occurs resulting in an intermittent bouncing
+contact until the vibrations dampen down. This results in an intermediate contact profile such as
+that shown in Figure 3-10.
+3.6.3 Pattern Structure
+The basic solution is to accept the initial event, wait for the vibrations to dampen out, and then
+sample the data source for its state. See Figure 3-11 for the pattern structure.
+3.6.4 Collaboration Roles
+This section describes the roles for this pattern.
+
+ApplicationClient
+This element isthe ultimate recipient of the debounced event. Its operation deviceEventReceive
+() is only activated when the event is real (i.e., results in a changed device state).
+3.6.4.2 BouncingDevice
+The BouncingDevice represents the hardware for the device itself. The most common
+implementation of this device is completely in hardware; in the case, the sendEvent()
+operation is simply an activation of an interrupt in the interrupt vector table of the embedded
+processor and the getState operation is implemented via a read of a memory location or IO port.
+DeviceState is normally a bivalued attribute, ON or OFF.
+3.6.4.3 Debouncer
+The Debouncer is the software element that processes the incoming event, debounces it, and
+makes sure that it represents an actual device state change. Its eventReceive() function is
+activated by the sendEvent() service of the BouncingDevice. In turn, it sets the delay timer
+(disabling interrupts from the device if necessary) and then checks the device state. If, after the
+debouncing time, the state is different then the event must have been real, so it sends the
+appropriate message to the ApplicationClient. The old state of the button is stored in its variable
+oldState; this variable is updated whenever there is a detected change of state of the device.
+3.6.4.4 DebouncingTimer
+This timer provides a nonbusy wait via its delay() service. This is often done with an OS call
+but might be done with specialty timer hardware as well.
+3.6.5 Consequences
+This pattern is not necessary for hardware that debounces before announcing events. In my
+experience, however, it often falls on the software to perform this task. This is a simple pattern
+that performs the debouncing so that the application need only concern itself with true events
+resulting from a change in device state.
+
+Implementation Strategies
+It is common for the device to use an interrupt vector to contact its client. Indeed, it is common
+for the BouncingDevice to be entirely implemented in hardware so that when the event occurs, a
+hardware interrupt is created, and the device state must be verified by reading a memory location
+or port address. When the event interface is via an interrupt, the address of the DeviceClient::
+eventReceive() operation must be installed in the proper location in the interrupt vector table
+when the DeviceClient is initiated, and the address must be removed if the DeviceClient is
+deactivated. Care must be taken to ensure that the eventReceive operation has no parameters (not
+even hidden ones!) so that the Return from Interrupt instruction will work properly. If the hidden
+me parameter is used as in the other patterns here, then making the operation static will ensure
+there is no hidden parameter because static operations are class-wide and not instance-wide
+functions (that is, they use no instance data and so don’t require a me pointer).
+If the interrupt vector table is not used, this pattern can be mixed with the Observer Pattern to
+distribute the event signal to multiple clients, if desired.
+The DebouncingTimer may use special timer hardware such as a programmable 555 timer. If
+the RTOS (Real-Time Operating System) timer is used, care must be taken with the time unit
+resolution. Windows, for example, has a standard timer resolution of between 10 and 25
+milliseconds. You can only get a delay time as a multiple of the basic timer resolution so if you
+want a 45 ms delay, you will have to use the closest timer resolution that is greater than or equal
+to your desired time. For debouncing applications, this is usually fine but your needs may vary
+with your specific hardware and application.
+If you don’t mind fully occupying your embedded processor while you wait for the debounce
+timeout, it is a simple matter
+/* LOOPS_PER_MS is the # of loops in the delay() function
+
+required to hit 1 ms, so it is processor and
+
+compiler-dependent
+
+*/
+
+#define LOOPS_PER_MS 1000
+
+void delay(unsigned int ms) {
+
+long nLoops = ms * LOOPS_PER_MS;
+
+do {
+
+while (nLoops–);
+
+}
+
+Code Listing 3-17: Busy wait timing
+3.6.7 Related Patterns
+As mentioned, the pattern is often used in conjunction with the Interrupt Pattern discussed
+elsewhere in this chapter. Timeouts are often shown within a tm() event on the state machine.
+3.6.8 Example
+In the example shown in Figure 3-12, we are modeling a toggle button for a microwave
+oven; press it once to turn on the microwave emitter and press it again to turn it off. This
+means that we need to call different operations in the MicrowaveEmitter depending if this
+is an even-numbered press of the button or an odd-numbered press. In addition, we have
+to debounce both the press and release of the button, although we only act on a button release.
+
+The code for the button driver is given in Code Listing 18 and Code Listing 19. #ifndef
+ButtonDriver_H
+#define ButtonDriver_H
+#define LOOPS_PER_MS (1000)
+
+#define DEBOUNCE_TIME (40)
+
+struct Button;
+
+struct MicrowaveEmitter;
+
+struct Timer;
+
+typedef struct ButtonDriver ButtonDriver;
+struct ButtonDriver {
+
+unsigned char oldState;
+
+unsigned char toggleOn;
+
+struct Button* itsButton;
+
+struct MicrowaveEmitter* itsMicrowaveEmitter;
+
+struct Timer* itsTimer;
+
+};
+
+void ButtonDriver_Init(ButtonDriver* const me);
+
+void ButtonDriver_Cleanup(ButtonDriver* const me);
+
+/* Operations */ void ButtonDriver_eventReceive(ButtonDriver* const me);
+
+struct Button* ButtonDriver_getItsButton(const ButtonDriver* const me);
+
+void ButtonDriver_setItsButton(ButtonDriver* const me, struct Button* p_Button);
+
+struct MicrowaveEmitter*
+
+ButtonDriver_getItsMicrowaveEmitter(const ButtonDriver* const me);
+
+void ButtonDriver_setItsMicrowaveEmitter(ButtonDriver* const me, struct MicrowaveEmitter*
+
+p_MicrowaveEmitter);
+
+struct Timer* ButtonDriver_getItsTimer(const ButtonDriver* const me);
+
+void ButtonDriver_setItsTimer(ButtonDriver* const me, struct Timer* p_Timer);
+
+ButtonDriver * ButtonDriver_Create(void);
+
+void ButtonDriver_Destroy(ButtonDriver* const me);
+
+void ButtonDriver___setItsButton(ButtonDriver* const me, struct Button* p_Button);
+
+void ButtonDriver__setItsButton(ButtonDriver* const me, struct Button* p_Button);
+
+void ButtonDriver__clearItsButton(ButtonDriver* const me);
+
+#endif
+
+this is ButtonDriver.h.
+
+#include "ButtonDriver.h"
+
+#include "Button.h"
+
+#include "MicrowaveEmitter.h"
+
+#include "Timer.h"
+
+static void cleanUpRelations(ButtonDriver* const me);
+
+void ButtonDriver_Init(ButtonDriver* const me) {
+me->oldState = 0;
+me->toggleOn = 0;
+me->itsButton = NULL;
+me->itsMicrowaveEmitter = NULL;
+me->itsTimer = NULL;
+}
+void ButtonDriver_Cleanup(ButtonDriver* const me) {
+cleanUpRelations(me);
+}
+void ButtonDriver_eventReceive(ButtonDriver* const me) {
+Timer_delay(me->itsTimer, DEBOUNCE_TIME);
+if (Button_getState(me->itsButton) != me->oldState) {
+/* must be a valid button event */
+
+me->oldState = me->itsButton->deviceState;
+
+if (!me->oldState) {
+
+/* must be a button release, so update toggle value */
+if (me->toggleOn) {
+me->toggleOn = 0; /* toggle it off */
+Button_backlight(me->itsButton, 0);
+MicrowaveEmitter_stopEmitting(me->itsMicrowaveEmitter);
+}
+else {
+me->toggleOn = 1; /* toggle it on */
+Button_backlight(me->itsButton, 1);
+MicrowaveEmitter_startEmitting(me->itsMicrowaveEmitter);
+}
+}
+/* if it’s not a button release, then it must
+be a button push, which we ignore.
+*/
+}
+}
+struct Button* ButtonDriver_getItsButton(const ButtonDriver* const me) {
+return (struct Button*)me->itsButton;
+}
+void ButtonDriver_setItsButton(ButtonDriver* const me, struct Button* p_Button) {
+if(p_Button != NULL)
+{
+Button__setItsButtonDriver(p_Button, me);
+}
+ButtonDriver__setItsButton(me, p_Button);
+}
+
+struct MicrowaveEmitter*
+
+ButtonDriver_getItsMicrowaveEmitter(const ButtonDriver* const me)
+
+{
+
+return (struct MicrowaveEmitter*)me->itsMicrowaveEmitter;
+}
+void ButtonDriver_setItsMicrowaveEmitter(ButtonDriver* const me, struct MicrowaveEmitter* p_MicrowaveEmitter) {
+me->itsMicrowaveEmitter = p_MicrowaveEmitter;
+}
+struct Timer* ButtonDriver_getItsTimer(const ButtonDriver* const me) {
+return (struct Timer*)me->itsTimer;
+}
+void ButtonDriver_setItsTimer(ButtonDriver* const me, struct Timer* p_Timer) {
+me->itsTimer = p_Timer;
+}
+ButtonDriver * ButtonDriver_Create(void) {
+ButtonDriver* me = (ButtonDriver *)
+malloc(sizeof(ButtonDriver));
+if(me!=NULL)
+{
+ButtonDriver_Init(me);
+}
+return me;
+}
+void ButtonDriver_Destroy(ButtonDriver* const me) {
+if(me!=NULL)
+{
+ButtonDriver_Cleanup(me);
+}
+free(me);
+}
+static void cleanUpRelations(ButtonDriver* const me) {
+if(me->itsButton != NULL)
+{
+struct ButtonDriver* * p_ButtonDriver = Button_getItsButtonDriver(me­
+>itsButton);
+if(p_ButtonDriver != NULL)
+{
+Button___setItsButtonDriver(me->itsButton, NULL);
+}
+me->itsButton = NULL;
+}
+if(me->itsMicrowaveEmitter != NULL)
+{
+me->itsMicrowaveEmitter = NULL;
+}
+if(me->itsTimer != NULL)
+{
+me->itsTimer = NULL;
+}
+}
+void ButtonDriver___setItsButton(ButtonDriver* const me, struct Button* p_Button) {
+me->itsButton = p_Button;
+}
+void ButtonDriver__setItsButton(ButtonDriver* const me, struct Button* p_Button) {
+if(me->itsButton != NULL)
+{
+Button___setItsButtonDriver(me->itsButton, NULL);
+}
+ButtonDriver___setItsButton(me, p_Button);
+}
+void ButtonDriver__clearItsButton(ButtonDriver* const me) {
+me->itsButton = NULL;
+}
+
+this is ButtonDriver.c

@@ -1,0 +1,387 @@
+Simultaneous Locking Pattern
+The Simultaneous Locking Pattern is a pattern solely concerned with deadlock avoidance. It achieves
+this by locking breaking condition #2 (holding resources while waiting for others). The pattern works
+in an all-or-none fashion. Either all needed resources are locked at once or none are locked.
+4.8.1 Abstract
+Deadlock can be solved by breaking any of the four required conditions. This pattern prevents
+the condition of holding some resources by requesting others by allocating them all at once.
+However, this pattern has an advantage over the Critical Region Pattern by allowing higher
+priority tasks to run if they don’t need any of the locked resources.
+4.8.2 Problem
+The problem of deadlock is a serious enough one in highly reliable computing that many
+systems design in specific mechanisms to detect it or avoid it. As previously discussed,
+deadlock occurs when a task is waiting on a condition that can never, in principle, be satisfied.
+There are four conditions that must be true for deadlock to occur, and it is sufficient to deny the
+existence of any one of these. The Simultaneous Locking Pattern breaks condition #2, not
+allowing any task to lock resources while waiting for other resources to be free.
+4.8.3 Pattern Structure
+The structure of the pattern is shown in Figure 4-23.
+
+In general, a MultimasteredResource can be a part of any number of different sets of
+resources, where a separate instance of ResourceMaster manages one such set. This
+potential sharing of resources across multiple ResourceMasters complicates the situation.
+When this flexibility is not needed, the situation simplifies to that shown in Figure 4-24. While
+the difference may not appear to be great, it removes the requirement for a tryLock()
+function on the Mutex and it is algorithmically much simpler.
+4.8.4 Collaboration Roles
+This section describes the roles for this pattern.
+4.8.4.1 MasteredResource
+This class is an element of the Simplified Simultaneous Locking Pattern. It represents a shared
+resource that is owned by a single instance of ResourceMasterSimplified. If it can be determined that each MasteredResource can be uniquely assigned to a set controlled by a single
+instance of ResourceMasterSimplified, life is much simpler; in this case the resource
+does not need its own Mutex because it will execute under the auspices of the Mutex of the
+ResourceMasterSimplified. If the resource must be shared in multiple resource groups,
+then its becomes a MultimasteredResource, which is a part of the more general pattern.
+4.8.4.2 MultimasteredResource
+This class is an element of the general Simultaneous Locking Pattern. It is managed by multiple
+ResourceMasters, then it requires its own mutex (via its like itsPartMutex). The Mutex
+it uses must provide the tryLock() function so that it can be determined by the
+ResourceMaster whether all the attempted locks will succeed or fail.
+4.8.4.3 Mutex
+This element is a normal mutex semaphore as used in previous patterns; if offers lock() and
+release() functions that work in the way standard for a mutex semaphore.
+4.8.4.4 QueryMutex
+This element is a normal mutex semaphore except that it also provides a tryLock()
+function for the general pattern case. This function works like the normal lock()
+function except that it returns with an error code if the lock fails rather than blocking
+the current thread. In the specialized form of the pattern (in which a single resource
+is owned by a single ResourceMaster), then the tryLock() function isn’t
+needed.
+4.8.4.5 ResourceClient
+This element is a client that wants to access a set of resources all at once to avoid potential
+deadlock. Although it has direct access (via its itsMultimasteredResource link) to the
+clients, it doesn’t access them until it has successfully received a lock on the
+ResourceMaster. This requires discipline on the part of the developers of the
+ResourceClients to ensure that they never attempt to access any of the client services
+without first getting a lock, and once the client is done with the resources, it frees the
+ResourceMaster.
+4.8.4.6 Resource Master
+The ResourceMaster controls the lock of the entire set of resources. It is used in the general
+case of the pattern and it must return a lock if and only if it can lock all the resources. While it
+can be implemented with mutexes solely on the parts (instances of ResourceMaster) because
+it may be blocked multiple times while it attempts to lock the set of individual
+MultimasteredResources, it may have unacceptable execution times in practice. A solution, implemented here, is to use the tryLock() function of the mutex to test. If the tryLock
+() calls for the entire set of MultimasteredResources to all succeed, then the
+ResourceMaster itself is locked and the ResourceClient is allowed to use its link to the
+MultimasteredResources. If the ResourceClient cannot lock all of the
+MultimasteredResources, then the ResourceMaster unlocks all of the
+MultimasteredResources it locked (before it found one where it failed), and returns with
+an error code to the ResourceClient.
+4.8.4.7 ResourceMasterSimplified
+The Simplified Simultaneous Locking Pattern doesn’t require the additional developer discipline required for the general case. The ResourceClient no longer has direct links to the
+MasterResources per se; instead, the ResourceMasterSimplified republishes all the
+services of its MasteredResources and delegates the functions directly to them. All of the
+functions share the same mutex.
+5 Consequences
+The Simultaneous Locking Pattern prevents deadlock by removing required condition
+#2 – some resources are locked while others are requested – by locking either all of the
+resources needed at once, or none of them. However, while the pattern removes the
+possibility of deadlock, it may increase the delay of the execution of other tasks. This delay
+may occur even in situations in which there is no actual resource conflict. The problem is
+far more pronounced for resources that are widely shared than for resources that are
+shared more narrowly. In addition, the pattern does not address priority inversion and in
+fact may make it worse, unless some priority inversion bounding pattern is deployed, such
+as the Guarded Call Pattern with priority inheritance. The general case for the pattern,
+shown in Figure 4-24, requires developer discipline in that they must avoid using the
+direct links to the MultimasteredResources until they have successfully been given a
+lock. In large project teams, this discipline can be ignored resulting in subtle and
+hard-to-identify errors. The simplified model, shown in Figure 4-24, doesn’t have this
+problem because the ResourceMasterSimplified republishes the resource access
+methods.
+Of course this pattern only applies when deadlock is a possibility, such as when multiple
+resources are shared with at least two in common by at least two threads.
+4.8.6 Implementation Strategies
+The implementation of this pattern should pose no difficulties other than the need to use, in the
+general case, a mutex semaphore that supports a tryLock() operation, and the need to ensure
+that the precondition of access (successful locking of the MultimasteredResource) is
+achieved before accessing the resource directly.
+4.8.7 Related Patterns
+Deadlock can be prevented by avoiding any of the required four conditions. The Critical
+Regions Pattern avoids by breaking condition #1 – mutual exclusion locking of resources. The
+Ordered Locking Pattern, described later in this chapter, prevents deadlock by breaking
+condition #4 – circular waiting condition.
+Because this pattern doesn’t address the concern of unbounded priority inversion, it can be
+mixed with the Guarded Call Pattern with priority inheritance.
+4.8.8 Example
+Figure 4-25 shows an example of the simplified form of Figure 4-24. In this case, the
+SensorMaster replicates the functions of the sensors (although the names are munged with the
+names of the serversto disambiguate services). When a client (such asthe PositionPredictor)
+invokes one of the services, the SensorMaster locksthe mutex and releasesit before returning to
+the client. The SensorMaster owns a mutex semaphore for this purpose.
+#ifndef SensorMaster_H
+
+#define SensorMaster_H
+
+#include "Position.h"
+
+struct DopplerSpeedSensor;
+
+struct GPSPositionSensor;
+
+struct OpticalSpeedSensor;
+
+struct SimMutex;
+
+typedef struct SensorMaster SensorMaster;
+struct SensorMaster {
+
+struct DopplerSpeedSensor* itsDopplerSpeedSensor;
+
+struct GPSPositionSensor* itsGPSPositionSensor;
+ 
+ struct OpticalSpeedSensor* itsOpticalSpeedSensor;
+struct SimMutex* itsSimMutex;
+};
+/* Constructors and destructors:*/
+
+void SensorMaster_Init(SensorMaster* const me);
+
+void SensorMaster_Cleanup(SensorMaster* const me);
+
+/* Operations */
+
+void SensorMaster_doppler_configure(SensorMaster* const me, short sampleRate);
+
+void SensorMaster_doppler_disable(SensorMaster* const me);
+
+void SensorMaster_doppler_enable(SensorMaster* const me);
+
+double SensorMaster_doppler_getSpeed(SensorMaster* const me);
+
+void SensorMaster_gps_activate(SensorMaster* const me);
+
+void SensorMaster_gps_configure(SensorMaster* const me, short
+
+reqSatellites, int useFast);
+
+void SensorMaster_gps_deactivate(SensorMaster* const me);
+
+struct Position SensorMaster_gps_getPosition(SensorMaster* const me);
+
+void SensorMaster_optical_configure(SensorMaster* const me, int
+
+wheelSize, int sensitivity);
+
+void SensorMaster_optical_disable(SensorMaster* const me);
+
+void SensorMaster_optical_enable(SensorMaster* const me);
+
+double SensorMaster_optical_getSpeed(SensorMaster* const me);
+
+struct DopplerSpeedSensor*
+
+SensorMaster_getItsDopplerSpeedSensor(const SensorMaster* const me);
+
+void SensorMaster_setItsDopplerSpeedSensor(SensorMaster* const
+
+me, struct DopplerSpeedSensor* p_DopplerSpeedSensor);
+
+struct GPSPositionSensor*
+
+SensorMaster_getItsGPSPositionSensor(const SensorMaster* const me);
+
+void SensorMaster_setItsGPSPositionSensor(SensorMaster* const me,
+
+struct GPSPositionSensor* p_GPSPositionSensor);
+
+struct OpticalSpeedSensor*
+
+SensorMaster_getItsOpticalSpeedSensor(const SensorMaster* const me);
+
+void SensorMaster_setItsOpticalSpeedSensor(SensorMaster* const me,
+
+struct OpticalSpeedSensor* p_OpticalSpeedSensor);
+
+struct SimMutex* SensorMaster_getItsSimMutex(const SensorMaster* const me);
+
+void SensorMaster_setItsSimMutex(SensorMaster* const me, struct
+SimMutex* p_SimMutex);
+
+SensorMaster * SensorMaster_Create(void);
+void SensorMaster_Destroy(SensorMaster* const me);
+#endif
+Code Listing 4-22: SensorMaster.h
+#include "SensorMaster.h"
+
+#include "DopplerSpeedSensor.h"
+
+#include "GPSPositionSensor.h"
+
+#include "OpticalSpeedSensor.h"
+
+#include "SimMutex.h"
+
+static void cleanUpRelations(SensorMaster* const me);
+void SensorMaster_Init(SensorMaster* const me) {
+
+me->itsDopplerSpeedSensor = NULL;
+
+me->itsGPSPositionSensor = NULL;
+
+me->itsOpticalSpeedSensor = NULL;
+
+me->itsSimMutex = NULL;
+
+}
+void SensorMaster_Cleanup(SensorMaster* const me) {
+
+cleanUpRelations(me);
+
+}
+void SensorMaster_doppler_configure(SensorMaster* const me, short sampleRate) {
+SimMutex_lock(me->itsSimMutex);
+DopplerSpeedSensor_configure(me->itsDopplerSpeedSensor,sampleRate);
+SimMutex_release(me->itsSimMutex);
+}
+void SensorMaster_doppler_disable(SensorMaster* const me) {
+
+SimMutex_lock(me->itsSimMutex);
+
+DopplerSpeedSensor_disable(me->itsDopplerSpeedSensor);
+
+SimMutex_release(me->itsSimMutex);
+
+}
+void SensorMaster_doppler_enable(SensorMaster* const me) {
+
+SimMutex_lock(me->itsSimMutex);
+
+DopplerSpeedSensor_enable(me->itsDopplerSpeedSensor);
+
+SimMutex_release(me->itsSimMutex);
+
+}
+double SensorMaster_doppler_getSpeed(SensorMaster* const me) {
+
+double speed;
+
+SimMutex_lock(me->itsSimMutex);
+
+speed = DopplerSpeedSensor_getSpeed(me->itsDopplerSpeedSensor);
+SimMutex_release(me->itsSimMutex);
+
+return speed;
+
+}
+void SensorMaster_gps_activate(SensorMaster* const me) {
+SimMutex_lock(me->itsSimMutex);
+GPSPositionSensor_activate(me->itsGPSPositionSensor);
+SimMutex_release(me->itsSimMutex);
+}
+void SensorMaster_gps_configure(SensorMaster* const me, short reqSatellites, int useFast) {
+SimMutex_lock(me->itsSimMutex);
+GPSPositionSensor_configure(me->itsGPSPositionSensor,reqSatellites,useFast);
+SimMutex_release(me->itsSimMutex);
+}
+void SensorMaster_gps_deactivate(SensorMaster* const me) {
+SimMutex_lock(me->itsSimMutex);
+GPSPositionSensor_deactivate(me->itsGPSPositionSensor);
+SimMutex_release(me->itsSimMutex);
+}
+struct Position SensorMaster_gps_getPosition(SensorMaster* const me) {
+Position p;
+SimMutex_lock(me->itsSimMutex);
+p = GPSPositionSensor_getPosition(me->itsGPSPositionSensor);
+SimMutex_release(me->itsSimMutex);
+return p;
+}
+void SensorMaster_optical_configure(SensorMaster* const me, int wheelSize,
+int sensitivity) {
+SimMutex_lock(me->itsSimMutex);
+OpticalSpeedSensor_configure(me->itsOpticalSpeedSensor,wheelSize, sensitivity);
+SimMutex_release(me->itsSimMutex);
+}
+void SensorMaster_optical_disable(SensorMaster* const me) {
+SimMutex_lock(me->itsSimMutex);
+OpticalSpeedSensor_disable(me->itsOpticalSpeedSensor);
+SimMutex_release(me->itsSimMutex);
+}
+void SensorMaster_optical_enable(SensorMaster* const me) {
+SimMutex_lock(me->itsSimMutex);
+OpticalSpeedSensor_enable(me->itsOpticalSpeedSensor);
+SimMutex_release(me->itsSimMutex);
+}
+double SensorMaster_optical_getSpeed(SensorMaster* const me) {
+double speed;
+SimMutex_lock(me->itsSimMutex);
+speed = OpticalSpeedSensor_getSpeed(me->itsOpticalSpeedSensor);
+SimMutex_release(me->itsSimMutex);
+return speed;
+}
+struct DopplerSpeedSensor* SensorMaster_getItsDopplerSpeedSensor(const
+SensorMaster* const me) {
+return (struct DopplerSpeedSensor*)me->itsDopplerSpeedSensor;
+}
+void SensorMaster_setItsDopplerSpeedSensor(SensorMaster* const me, struct DopplerSpeedSensor* p_DopplerSpeedSensor) {
+me->itsDopplerSpeedSensor = p_DopplerSpeedSensor;
+}
+struct GPSPositionSensor* SensorMaster_getItsGPSPositionSensor(const
+SensorMaster* const me) {
+return (struct GPSPositionSensor*)me->itsGPSPositionSensor;
+}
+void SensorMaster_setItsGPSPositionSensor(SensorMaster* const me,
+struct GPSPositionSensor* p_GPSPositionSensor) {
+me->itsGPSPositionSensor = p_GPSPositionSensor;
+}
+struct OpticalSpeedSensor* SensorMaster_getItsOpticalSpeedSensor(const
+SensorMaster* const me) {
+return (struct OpticalSpeedSensor*)me->itsOpticalSpeedSensor;
+}
+void SensorMaster_setItsOpticalSpeedSensor(SensorMaster* const me, struct OpticalSpeedSensor* p_OpticalSpeedSensor) {
+me->itsOpticalSpeedSensor = p_OpticalSpeedSensor;
+}
+struct SimMutex* SensorMaster_getItsSimMutex(const SensorMaster* const me) {
+return (struct SimMutex*)me->itsSimMutex;
+}
+void SensorMaster_setItsSimMutex(SensorMaster* const me, struct
+SimMutex* p_SimMutex) {
+me->itsSimMutex = p_SimMutex;
+}
+SensorMaster * SensorMaster_Create(void) {
+SensorMaster* me = (SensorMaster *)
+
+malloc(sizeof(SensorMaster));
+
+if(me!=NULL)
+
+SensorMaster_Init(me);
+
+return me;
+
+}
+
+void SensorMaster_Destroy(SensorMaster* const me) {
+
+if(me!=NULL)
+
+SensorMaster_Cleanup(me);
+
+free(me);
+
+}
+
+static void cleanUpRelations(SensorMaster* const me) {
+
+if(me->itsDopplerSpeedSensor != NULL)
+
+me->itsDopplerSpeedSensor = NULL;
+
+if(me->itsGPSPositionSensor != NULL)
+
+me->itsGPSPositionSensor = NULL;
+
+if(me->itsOpticalSpeedSensor != NULL)
+
+me->itsOpticalSpeedSensor = NULL;
+
+if(me->itsSimMutex != NULL)
+
+me->itsSimMutex = NULL;
+
+}
+
+Code Listing 4-23: SensorMaster.c
+
+
+ 
+ 

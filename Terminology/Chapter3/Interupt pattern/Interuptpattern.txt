@@ -1,0 +1,267 @@
+Interrupt Pattern
+The physical world is fundamentally both concurrent and asynchronous; it's nonlinear too, but
+that's a different story. Things happen when they happen and if your embedded system isn’t
+paying attention, those occurrences may be lost. Interrupt handlers (a.k.a. Interrupt Service
+Routines, or ISRs) are a useful way to be notified when an event of interest occurs even if your
+embedded system is off doing other processing.
+3.7.1 Abstract
+The Interrupt Pattern is a way of structuring the system to respond appropriately to incoming
+events. It does require some processor- and compiler-specific services but most embedded
+compilers, and even some operating systems provide services for just this purpose. Once
+initialized, an interrupt will pause its normal processing, handle the incoming event, and then
+return the system to its original computations.
+3.7.2 Problem
+In many systems, events have different levels of urgency14. Most embedded systems have at
+least some events with a high urgency that must be handled even when the system is busy doing
+other processing. The Polling Pattern, discussed elsewhere in this chapter, looks for events of
+interest when it is convenient for the system. While this has the advantage that primary
+processing can proceed uninterrupted, it has the disadvantage that high urgency and high
+frequency events may not be handled in a timely fashion, or may be missed altogether. The
+Interrupt Pattern addresses this problem by immediately pausing the current processing,
+handling the incoming event, and then returning to the original computation.
+3.7.3 Pattern Structure
+Figure 3-13 shows the basic structure of the pattern. Because it is important to ensure that the
+interrupt handlers are parameterless, I’ve used the «File» stereotype to indicate that this pattern
+isn’t using the class-structured approach with the me pointer.
+3.7.4 Collaboration Roles
+This section describes the roles for this pattern.
+3.7.4.1 InterruptHandler
+The interruptHandler is the only element that has behavior in the pattern. It has functions to
+install or deinstall an interrupt vector and the interrupt service routines themselves.
+The install() function takes the interrupt number as an incoming parameter. When run, it copies
+the existing vector into the vector table and then replaces it with the address of the appropriate
+interrupt service routine. The deinstall() function does the reverse, restoring the original vector.
+Each handleIinterrupt_x() function handles a specific interrupt, completing with a Return From
+Interrupt (RTI) statement. This statement is compiler and processor dependent. As mentioned, it
+is crucial that the interrupt service routines have no parameters because otherwise when they
+attempt to return, the wrong value will be popped off the CPU stack.
+3.7.4.2 InterruptVectorTable
+The InterruptVectorTable is nothing more than an array of addresses to interrupt service
+routines. It is located in a specific memory location that is processor dependent. When interrupt
+number x occurs, the CPU suspends the current processing and indirectly invokes the address
+corresponding to the x-th index in this table. Upon an RTI, the CPU restores execution of the
+suspending computation.
+3.7.4.3 vectorPtr
+The vectorPtr is a data type; specifically it is a pointer to a function that takes no parameters and
+returns no values.
+3.7.5 Consequences
+This pattern allows for highly responsive processing of events of interest. It interrupts normal
+processing (provided that interrupts have not been disabled) and so should be used carefully
+when time-critical processing is going on. Normally, interrupts are disabled while an interrupt
+service routine is executing; this means that interrupt service routines must execute very
+quickly to ensure that other interrupts are not missed.
+Because the interrupt service routines must be short, one must take care when using them to
+invoke other system services. To share data signaled by an interrupt, for example, the ISR
+might need to queue the data and quickly RTI; at some point in the future, the application
+software will discover the data in the queue. This mechanism is useful when the actual
+acquisition of the data is more urgent than its processing. In this way, a long interrupt handle
+can be broken up into two parts; the urgent part, done via the ISR per se, and the processing
+part done via a second function that periodically checks for waiting data or signals.
+Problems arise with this pattern when the ISR processing takes too long, when an implementation mistake leaves interrupts disabled, or race conditions or deadlocks occur on shared
+resources. The last of these concerns is the most insidious.
+A race condition is a computational situation in which the result depends on the order of
+execution of statements but that order isn’t known or knowable. A deadlock is a situation in
+which two elements are waiting on a condition that cannot in principle occur. These are
+common problems that will be discussed in more detail in the next chapter. In this context, a
+variable or data structure (such as a queue) shared between an interrupt service routine and an
+application service is a resource with potential race and deadlock conditions because you can
+never know exactly when the ISR will be executed.
+Figure 3-14 shows a typical structure when the data acquired as a part of an ISR must be shared
+with normal system processing. The race condition arises when the interrupt occurs when
+ApplicationElement is accessing the SharedResource. Imagining that the ApplicationElement is
+halfway through reading the data when the interrupt occurs – unless the read takes place as an
+atomic uninterruptible access – the ISR will pause the ApplicationElement mid-read, modify
+the data, and then return. The ApplicationElement will see corrupted data – partially new data
+and partially old data.
+There are a number of solutions to this, but they all involve serializing the access to the shared
+resource. One way is to disable interrupts in the ApplicationElement just prior to reading the
+data and to reenable interrupt just after access is complete. The primary downside to that
+approach is the discipline necessary to ensure that this is always done. Another approach is to
+use a mutex semaphore to guard the data, as shown in Figure 3-15.
+In this figure, the SharedResource is protected with a mutex semaphore; this results in a lock
+when either the getData() or setData() functions are called and in the removal of the lock when
+the functions are complete. Deadlock can occur if the ISR waits on the semaphore lock when it
+tries to access the data. Since the ISR has interrupted the ApplicationElement that owns the
+lock, if the ISR waits, the ApplicationElement will never have the opportunity to remove the
+lock. The solution of course, is that the ISR cannot wait on the lock. The new data can be
+discarded or two shared resources can be made with the proviso that the ISR or ApplicationElement can only lock one of the resources at a time. This latter solution is sometimes referred
+to as a “ping pong buffer.”
+3.7.6 Implementation Strategies
+An ISR is different than a normal C function in that as long as interrupts are enabled, it can
+pretty much interrupt between any pair of CPU instructions. That means that the CPU registers
+must be saved and restored before the ISR statements can execute.
+In fact, each interrupt service routine must:
+•	 save the CPU registers, including the CPU instruction pointer and any processor flags, such
+as carry, parity and zero
+•	 clear the interrupt bit
+•	 perform the appropriate processing
+•	 restore the CPU registers
+•	 return
+In “standard C,” it is necessary to use assembly language keyword asm to save and restore
+registers, something like
+
+void isr (void) {
+asm {
+DI ; disable interrupts
+PUSH AF ; save registers
+PUSH BC
+PUSH DE
+PUSH HL
+PUSH IX
+PUSH IY
+}
+/* normal C code here */
+asm {
+POP IY
+POP IX
+POP HL
+POP DE
+POP BC
+POP AF
+EI ; enable interrupts
+RETI ; return from interrupt
+}
+}
+Some compilers support this by using a special interrupt keyword. When available, the
+keyword is used in the function declaration such as
+interrupt void isr(void) {
+/* normal C code here */
+};
+and the compiler will insert the necessary instructions for you.
+The GNU C Compiler (GCC) uses __attribute__ specification to indicate an interrupt
+handler using the syntax
+void isr(void) __attribute__ ((interrupt (“IRQ”));
+void isr(void) {
+/* normal C code here */
+}
+but again this is processor dependent.
+The interrupt keyword tells the compiler to generate register-saving instructions before the
+body of the function is executed and to restore the registers just before the ISRs return.
+Many RTOSs provide functions for installing the vectors and some CPUs only have a
+single vector, requiring the ISR to figure out which interrupt occurred by checking the
+hardware.
+
+Related Patterns
+An alternative means to get hardware signals and data is to periodically check for them via the
+Polling Pattern.
+
+Example
+In the example shown in Figure 3-16, a button is the hardware device. One interrupt (index 0) is
+generated for the push and another (index 1) is generated for the release. The ButtonHandler is
+the interrupt handler for the interrupts and its install() functions set up the vectors for both
+pointers. The main() routine does the following:
+•	 initializes the Button and LED classes
+•	 sets all the elements of the RobotInterruptVectorTable and ButtonHandler::oldVectors to
+NULL
+•	 sets the pointer from the ButtonHandler to the LED
+•	 calls the install() function to set up the vectors to the two ISRs
+as you can see in Code Listing 20
+int j;
+
+Button itsButton;
+
+LED itsLED;
+
+itsButton = Button_Create();
+
+itsLED = LED_Create();
+
+for (j=0;j<9;j++) {
+
+ISRAddress[j] = NULL;
+
+oldVectors[j] = NULL;
+
+};
+
+ButtonHandler_setItsLED(&itsLED);
+
+install(); /* install interrupt vectors */
+
+/* normal system execution stuff */
+Code Listing 20: Interupt example main() code
+The interesting part is the ButtonHandler itself. It installs the address of the two ISRs into
+positions 0 and 1 of the interrupt vector table so that when the interrupts occur, the appropriate
+ISR is invoked. In the example, when the button is pushed, the ISR lights the LED and turns off
+the light when the button is released.
+Note that this code uses the interrupt keyword to indicate to the compiler the interrupt service
+routines; you will have to use the appropriate syntax provided by your compiler. To execute this
+on standard desktop hardware, simply remove the interrupt keyword from the ISR's function
+headers and then the interrupt vector table will operate as a table of normal function pointers.
+#ifndef ButtonHandler_H
+
+#define ButtonHandler_H
+
+typedef void (*ButtonVectorPtr)(void);
+
+struct LED;
+
+extern ButtonVectorPtr oldVectors[10];
+
+/* Operations */
+
+void install(void);
+
+void deinstall(void);
+
+interrupt void handleButtonPushInterrupt(void);
+
+interrupt void handleButtonReleaseInterrupt(void);
+
+struct LED* ButtonHandler_getItsLED(void); void ButtonHandler_setItsLED(struct
+
+LED* p_LED);
+
+#endif
+ 
+ this is ButtonHandler.h
+
+ #include "ButtonHandler.h"
+
+#include "LED.h"
+
+#include "RobotInterruptVectorTable.h"
+
+ButtonVectorPtr oldVectors[10];
+
+static struct LED* itsLED;
+
+void deinstall(void) {
+
+ISRAddress[0] = oldVectors[0];
+
+ISRAddress[1] = oldVectors[1];
+
+}
+
+interrupt void handleButtonPushInterrupt(void) {
+
+LED_LightOn(itsLED);
+
+}
+
+interrupt void handleButtonReleaseInterrupt(void) {
+
+LED_LightOff(itsLED);
+
+}
+
+void install(void) {
+
+oldVectors[0] = ISRAddress[0];
+
+oldVectors[1] = ISRAddress[1];
+
+ISRAddress[0] = handleButtonPushInterrupt;
+
+ISRAddress[1] = handleButtonReleaseInterrupt;
+
+}
+struct LED* ButtonHandler_getItsLED(void) {
+return (struct LED*)itsLED;
+}
+void ButtonHandler_setItsLED(struct LED* p_LED) {
+itsLED = p_LED;
+}
+
+This is ButtonHandler.c

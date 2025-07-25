@@ -1,0 +1,98 @@
+@startuml CriticalRegionPattern_SequenceDiagram
+!theme plain
+title Critical Region Pattern - Sequence Diagram for moveRobotArm Operation
+
+actor Client
+participant "manager: CRRobotArmManager" as Manager
+participant "userInput: UserInput" as UserInput
+participant "robotArm: RobotArm" as RobotArm
+participant "display: CRDisplay" as Display
+participant "OS_TaskSwitching" as OS
+
+Client -> Manager: moveRobotArm()
+activate Manager
+
+note over Manager: Start of moveRobotArm operation\n(Non-critical region)
+
+/' Motor Zero Operation (Nested Critical Region) '/
+Manager -> Manager: motorZero()
+activate Manager
+
+note over Manager: motorZero() has its own critical region\n(Called outside main critical region to avoid nesting)
+
+Manager -> OS: OS_disable_task_switching()
+activate OS
+note over OS: Task switching disabled\n(Critical Region Start)
+
+Manager -> RobotArm: moveTo(0, 0, 0)
+activate RobotArm
+RobotArm --> Manager: success (1)
+deactivate RobotArm
+
+Manager -> OS: OS_enable_task_switching()
+note over OS: Task switching enabled\n(Critical Region End)
+deactivate OS
+
+alt !success
+    Manager -> Display: printMsg("Cannot zero!")
+    activate Display
+    deactivate Display
+end
+
+deactivate Manager
+
+note over Manager: Back in moveRobotArm\n(Non-critical region continues)
+
+/' Get User Input (Non-critical) '/
+Manager -> UserInput: getX()
+activate UserInput
+UserInput --> Manager: x coordinate
+deactivate UserInput
+
+Manager -> UserInput: getY()
+activate UserInput
+UserInput --> Manager: y coordinate
+deactivate UserInput
+
+Manager -> UserInput: getZ()
+activate UserInput
+UserInput --> Manager: z coordinate
+deactivate UserInput
+
+/' Main Critical Region for Robot Movement '/
+note over Manager: Begin main critical region for movement
+
+Manager -> OS: OS_disable_task_switching()
+activate OS
+note over OS: Task switching disabled\n(Main Critical Region Start)
+
+Manager -> RobotArm: moveTo(x, y, z)
+activate RobotArm
+note over RobotArm: Critical robot arm movement\nMust not be interrupted
+RobotArm --> Manager: success (1 or 0)
+deactivate RobotArm
+
+Manager -> OS: OS_enable_task_switching()
+note over OS: Task switching enabled\n(Main Critical Region End)
+deactivate OS
+
+note over Manager: End of critical region\n(Non-critical region)
+
+/' Display Result (Non-critical) '/
+Manager -> Display: printInt("Result is ", success)
+activate Display
+deactivate Display
+
+Manager --> Client: operation complete
+deactivate Manager
+
+note over Manager, OS
+    Key Points:
+    1. Critical regions are kept short to minimize impact on other tasks
+    2. motorZero() is called OUTSIDE the main critical region to avoid nesting
+    3. User input gathering is done in non-critical region
+    4. Only the actual robot movement is in critical region
+    5. Display operations are in non-critical region
+end note
+
+@enduml

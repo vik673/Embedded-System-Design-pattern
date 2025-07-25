@@ -1,0 +1,176 @@
+Dual Channel Pattern
+The Dual Channel Pattern is primarily a pattern to improve reliability by offering multiple
+channels, thereby addressing redundancy concerns at the architectural level. If the channels are
+identical (called the Homogeneous Redundancy Channel), the pattern can address random
+faults (failures) but not systematic faults (errors). If the channels use a different design or
+implementation, the pattern is called the Heterogeneous Redundancy Pattern (also known as
+Diverse Design Pattern) and can address both random and systematic faults.
+6.7.1 Abstract
+The Dual Channel Pattern provides architectural redundancy to address safety and reliability
+concerns. It does this by replicating channels and embedding logic that manages them and
+determines when the channels will be “active.”
+
+6.7.2 Problem
+This pattern provides protection against single-point faults (either failures or both failures and
+errors, depending on the specific subpattern selected). Depending on which pattern, the system
+may detect a fault in one channel by comparing it to the other and then transition to the faultsafe state OR it may use other means to detect the fault in one channel and switch to the other
+when a fault occurs.
+6.7.3 Pattern Structure
+Figure 6-13 shows the basic structure for the pattern.
+Figure 6-14 shows the detailed internal structure within the pattern. It is almost exactly
+what appears in the Protected Single Channel Pattern, with the exception of the association
+from the ConcreteTransformChecker to the current and alternative channel.
+Note that the itsChannel association points to the current channel that owns the
+ConcreteTransformChecker instance while the itsOtherChannel points to the alternative channel. This allows the checker to disable the current channel and enable the alternative
+channel.
+6.7.4 Collaboration Roles
+This section describes the roles for this pattern. Note that the roles that are internal to the pattern
+can be seen in the previous section on the Protected Single Channel Pattern.
+6.7.4.1 AbstractDataTransform
+This class is a placeholder for one of several possible ConcreteDataTransforms. In an
+object-oriented language or implementation, true generalization can be used but in C, it is more
+common to use this as a notional concept to give the intent rather than drive the implementation. It has two optional12 associations. One is to itself – that is, the next transformation in the
+list. The other is to the output ActuationDeviceDriver – this is in lieu of the former
+association. Put another way, the AbstractDataTransform has a link to the next processing
+step in the chain or to the output device driver, but not both.
+This class also an optional link to AbstractTransformChecker for points in the transformation chain where checking is appropriate.
+6.7.4.2 AbstractTransformChecker
+This is a placeholder for an element that can check on the validity of the processing or data in
+its current state.
+6.7.4.3 ActuatorDeviceDriver
+This class uses the computed output values to drive one or more actuator, such as a motor, light,
+or heating unit.
+6.7.4.4 Channel
+This class is the container for the instances of the others. It is important in this context because it
+provides a “unit of redundancy.” It provides two services of itself – enable() and disable().
+6.7.4.5 ConcreteDataTransform
+This class performs a mathematical transformation on the incoming data value (from either the
+sensor or a previous ConcreteDataTransform) and produces an output (sent to the next
+ConcreteDataTransform in the sequence or the ActuatorDeviceDriver). In simple
+cases, there may be only a single ConcreteDataTransform class, but in more complex
+situations there may be dozens.
+Certain of these classes form checkpoints – points in the transformation chain at which the
+validality of the transformations will be checked. For those cases, the optional link to the
+specific ConcreteTransformChecker will be implemented.
+6.7.4.6 ConcreteTransformChecker
+This is a specific transformation checking class that checks the transformation at a single point
+in the chain.
+6.7.4.7 SensorDeviceDriver
+This class acquires physical data from one or more sensors to put into the channel for
+processing.
+6.7.5 Consequences
+This pattern addresses safety- or reliability-related faults by replicating the channel; this usually
+requires replication of some amount of hardware as well, giving it a rather high recurring
+(production) cost. If the channels are identical, then all replicants contain the same errors and so
+will manifest the error under the same circumstances.
+6.7.6 Implementation Strategies
+The large-scale implementation strategies are commonly identified as different subpatterns
+of this one. These are discussed in the next section. In addition, the management of the
+two channels can be implemented differently. Both channels can be run simultaneously and
+checked against each other – if the outputs differ above some threshold, the system
+transitions to a fault-safe state. Alternatively, one channel can run until a fault is detected and
+then the other channel can be enabled, allowing continuation of services in the presence of
+the fault.
+6.7.7 Related Patterns
+There are a number of variants on this pattern. Each gives a different cost/benefit ratio.
+6.7.7.1 Homogeneous Redundancy Pattern
+Description
+This pattern variant uses identical designs and implementations for the different channels. It
+can effectively address single-point faults – provided that the faults are isolated within a
+single channel. The system can continue functionality in the presence of a failure within a
+channel.
+Consequences
+This pattern variant has a relatively high recurring cost (cost per shipped item) but a relatively
+low design cost (since each channel must only be designed once). Typically sensors and
+actuators are replicated to provide fault isolation, and often processors, memory, and other
+hardware must be replicated.
+6.7.7.2 Heterogeneous Redundancy Pattern
+Description
+This pattern variant uses dual channels of different designs or different implementations to
+address both random and systematic faults. The system can continue to deliver services in the
+presence of a fault, provided that the fault is properly isolated within a single channel.
+Typically, sensors and actuators are replicated to provide fault isolation, and often processors,
+memory, and other hardware must be replicated as well as providing multiple (different)
+implementations of the same software functionality.
+Consequences
+This pattern variant has a relatively high recurring cost (cost per shipped item) and a relatively
+high design cost (since each channel must be designed twice). Typically, sensors and actuators
+are replicated to provide fault isolation, and often processors, memory, and other hardware must
+be replicated in addition to the software functionality. Note that this pattern variant addresses
+both random and systematic faults, although Nancy Leveson notes that there is usually some
+correlation between errors even in diverse implementations13.
+6.7.7.3 Triple Modular Redundancy (TMR) Pattern
+Description
+This pattern variant uses three channels of usually identical designs to address both faults. The
+theory of use is that if there is a single-point fault then one of the channels will disagree with the
+other two and the outlier is discarded. The voting mechanism (the ChannelArbiter) is
+designed to “fail on” so that at least one channel (it doesn’t matter which) will result in an
+output if the voting mechanism fails. The system can continue to deliver services in the
+presence of a fault, provided that the fault is properly isolated within a single channel.
+Typically, sensors and actuators are replicated to provide fault isolation, and often processors,
+memory, and other hardware must be replicated as well as providing multiple (different)
+implementations of the same software functionality.
+Consequences
+This pattern has a very high recurring cost because the channel must be replicated
+three times. If all the channels have the same design (most common), then the design
+cost is relatively low; the only additional cost is the ChannelArbiter used to reject the
+outlier output. If the channels are of different designs, then the cost of this pattern variant is
+very high since each channel must be designed three times. This is a very common pattern in
+avionics.
+6.7.7.4 Sanity-Check Pattern
+Description
+This pattern variant uses two heterogeneous channels; one is the primary actuation channel and
+the second is a lightweight channel that checks on the output using lower fidelity computations
+and hardware. If the primary channel has a fault that can be detected by the lower fidelity
+checking channel, then the system enters its fault-safe state.
+Consequences
+This pattern has a low recurring cost and a medium design cost since it requires additional
+design work but lower fidelity redundancy. It cannot continue in the presence of a single fault.
+6.7.7.5 Monitor-Actuator Pattern
+Description
+This pattern variant uses two extremely heterogeneous channels. The first, just as in the Sanity
+Check Pattern, is the actuator channel. This channel provides the system service. The second
+channel monitors the physical result of the actuation channel using one or more independent
+sensors. The concept of the pattern is that if the actuator channel has a fault and performs
+incorrectly, the monitoring channel identifies it and can command the system to a fault-safe
+state. If the monitoring channel has a fault, then the actuation channel is still behaving correctly.
+This pattern assumes there is a fault-safe state and that the sensor(s) used by the monitoring
+channel are not used by the actuation channel.
+The primary differences between the Monitor-Actuator Pattern and the Sanity Check
+Pattern are:
+1.	 The Sanity Check Pattern is a low-fidelity check on the output of the computation of the
+actuation channel; this does not require an independent sensor.
+2.	 The Monitor-Actuator is a high-fidelity check on the physical result of the actuator channel
+and therefore requires an independent sensor.
+Consequences
+This is a medium-weight pattern. It requires some additional recurring cost because of the
+additional sensor(s) and processing capability for the monitoring channel. The extra monitoring
+channel requires a modest amount of additional design work as well. As mentioned, this
+channel provides single-point fault safety for systems in which there is a fault-safe state.
+
+6.7.8 Example
+The example shown in Figure 6-18 is a heterogeneous dual channel pattern for a train speed
+control system. One channel uses a light shining on the inside of a train wheel. By knowing the
+circumference of the wheel and by measuring the frequency of the mark appearance (measured
+by the optical sensor), one can compute the speed of the train. These data are then filtered,
+validated, and used to compute a desired engine output. This engine output is checked for
+reasonableness and, if acceptable, then sent to the engine. This is the
+OpticalWheelSpeedChannel shown in Figure 6-19.
+The other channel uses a GPS to determine train speed. This channel receives ephemeris data
+from some set of (at least three) satellites and using the time sent (and comparing it to the time
+within the system), it computes the distance to the satellite. Through a process called 3D
+triangulation, the train’s position can be calculated. This location is validated and then used to
+compute the speed by looking at the rate of change of positions. This speed is then validated
+and, if valid, is used to compute the desired engine output to maintain current speed. This is the
+GPSSpeedChannel shown in Figure 6-20.
+In either channel, if data are identified as invalid, that channel does not command the engine
+speed. Because there is another channel to take over the task of determining desired engine
+output, the system can continue to operate even if a single point fault results in a channel
+shutting down. Further, because this is an extremely heterogeneous design, an error in one
+channel will not be replicated in the other. This design provides protection against both random
+and systematic faults.
+There is nothing profound about the code that is produced to implement this example beyond
+what has been described earlier in this chapter. The interesting part is how the channels are
+
+connected to provide the ability of the system to detect a fault and continue safe operation in the
+presence of the fault.

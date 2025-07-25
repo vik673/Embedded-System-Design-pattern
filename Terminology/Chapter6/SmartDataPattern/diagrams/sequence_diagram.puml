@@ -1,0 +1,103 @@
+@startuml Smart_Data_Pattern_Sequence_Diagram
+
+title Smart Data Pattern - Sequence Diagram\nDemo Execution Flow
+
+actor Client
+participant "AlarmManager" as AM
+participant "PatientDataClass" as PDC
+participant "SmartInt\n(age)" as SI_age
+participant "SmartInt\n(weight)" as SI_weight
+participant "SmartColor\n(foregroundColor)" as SC_fg
+
+== Initialization ==
+Client -> AM : AlarmManager_Create()
+activate AM
+AM -> AM : AlarmManager_Init()
+return alarmMgr
+
+Client -> PDC : PatientDataClass_Create(alarmMgr)
+activate PDC
+PDC -> PDC : PatientDataClass_Init()
+PDC -> SI_age : SmartInt_Init(0, 0, 130, alarmMgr)
+activate SI_age
+return 
+PDC -> SI_weight : SmartInt_Init(0, 0, 500, alarmMgr)
+activate SI_weight
+return 
+PDC -> SC_fg : SmartColor_Init(WHITE, BLACK, WHITE, alarmMgr)
+activate SC_fg
+return 
+return patient
+
+== Valid Operations ==
+Client -> PDC : PatientDataClass_setAge(35)
+PDC -> SI_age : SmartInt_setPrimitive(35)
+SI_age -> SI_age : checkValidity()
+note right : 35 is within range [0-130]
+SI_age -> SI_age : value = 35
+return NO_ERRORS
+
+Client -> PDC : PatientDataClass_setWeight(75)
+PDC -> SI_weight : SmartInt_setPrimitive(75)
+SI_weight -> SI_weight : checkValidity()
+note right : 75 is within range [0-500]
+SI_weight -> SI_weight : value = 75
+return NO_ERRORS
+
+== Range Violation Scenario ==
+Client -> PDC : PatientDataClass_setAge(150)
+PDC -> SI_age : SmartInt_setPrimitive(150)
+SI_age -> SI_age : checkValidity()
+note right : 150 > 130 (high range)
+SI_age -> SI_age : errorCode = ABOVE_RANGE
+SI_age -> AM : AlarmManager_addAlarm(ABOVE_RANGE)
+AM -> AM : currentAlarm = ABOVE_RANGE
+AM -> AM : alarmCount++
+AM -> AM : set alarmMessage
+AM -> AM : printf("ALARM: Value above acceptable range")
+return
+return ABOVE_RANGE
+
+Client -> PDC : PatientDataClass_setWeight(600)
+PDC -> SI_weight : SmartInt_setPrimitive(600)
+SI_weight -> SI_weight : checkValidity()
+note right : 600 > 500 (high range)
+SI_weight -> SI_weight : errorCode = ABOVE_RANGE
+SI_weight -> AM : AlarmManager_addAlarm(ABOVE_RANGE)
+AM -> AM : currentAlarm = ABOVE_RANGE
+AM -> AM : alarmCount++
+AM -> AM : set alarmMessage
+AM -> AM : printf("ALARM: Value above acceptable range")
+return
+return ABOVE_RANGE
+
+== Data Validation ==
+Client -> PDC : PatientDataClass_checkAllData()
+PDC -> SI_age : SmartInt_checkValidity()
+return ABOVE_RANGE
+note right : Validation fails due to\nage out of range
+return ABOVE_RANGE
+
+== Query Alarm Status ==
+Client -> AM : AlarmManager_getAlarmCount()
+return alarmCount
+
+Client -> AM : AlarmManager_getCurrentAlarm()
+return ABOVE_RANGE
+
+Client -> AM : AlarmManager_getAlarmMessage()
+return "Value above acceptable range"
+
+== Cleanup ==
+Client -> PDC : PatientDataClass_Destroy()
+PDC -> PDC : PatientDataClass_Cleanup()
+deactivate SI_age
+deactivate SI_weight
+deactivate SC_fg
+deactivate PDC
+
+Client -> AM : AlarmManager_Destroy()
+AM -> AM : AlarmManager_Cleanup()
+deactivate AM
+
+@enduml

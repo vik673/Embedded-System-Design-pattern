@@ -1,0 +1,295 @@
+@startuml DecomposedAndStatePattern_SequenceDiagram
+
+!theme plain
+title Decomposed AND-State Pattern - Main Sequence Diagram\n(Complete Lifecycle with Orthogonal State Management)
+
+actor Client
+participant LightController as "LightController\n<<Context>>"
+participant AndStateList as "AndStateList\n<<Container>>"
+participant ErrorStateClass as "ErrorStateClass\n<<Error Region>>"
+participant ModeStateClass as "ModeStateClass\n<<Mode Region>>"
+participant Light as "Light\n<<Device>>"
+participant Klaxon as "Klaxon\n<<Device>>"
+
+== Initialization Phase ==
+Client -> LightController : Create()
+activate LightController
+
+LightController -> Light : Create()
+activate Light
+Light --> LightController : success
+deactivate Light
+
+LightController -> Klaxon : Create()
+activate Klaxon
+Klaxon --> LightController : success
+deactivate Klaxon
+
+LightController -> LightController : Init()
+note right : currentState = OFF_STATE
+
+LightController --> Client : ready
+deactivate LightController
+
+== Activation: OFF → ON ==
+Client -> LightController : evEnable()
+activate LightController
+
+LightController -> LightController : exit_OffState()
+LightController -> LightController : enter_OnState()
+
+' Entry actions for composite state
+LightController -> Light : turnOn()
+activate Light
+Light --> LightController : ok
+deactivate Light
+
+LightController -> Light : setColor(RED)
+activate Light
+Light --> LightController : ok
+deactivate Light
+
+LightController -> Light : setMode(QUICKLY)
+activate Light
+Light --> LightController : ok
+deactivate Light
+
+' Initialize orthogonal regions
+LightController -> LightController : enterNestedAndStates()
+
+LightController -> AndStateList : Create(ErrorStatus)
+activate AndStateList
+AndStateList -> ErrorStateClass : Create()
+activate ErrorStateClass
+ErrorStateClass -> ErrorStateClass : Init()
+note right : currentState = OK_STATE
+ErrorStateClass -> ErrorStateClass : setItsLightController()
+ErrorStateClass --> AndStateList : ready
+deactivate ErrorStateClass
+AndStateList --> LightController : region added
+deactivate AndStateList
+
+LightController -> AndStateList : Create(ModeStatus)
+activate AndStateList
+AndStateList -> ModeStateClass : Create()
+activate ModeStateClass
+ModeStateClass -> ModeStateClass : Init()
+note right : currentState = STARTINGUP_STATE
+ModeStateClass -> ModeStateClass : setItsLightController()
+ModeStateClass --> AndStateList : ready
+deactivate ModeStateClass
+AndStateList --> LightController : region added
+deactivate AndStateList
+
+LightController --> Client : state transition complete
+deactivate LightController
+
+== Concurrent Event Processing ==
+
+=== Event: evRun (Mode Transition) ===
+Client -> LightController : evRun()
+activate LightController
+
+' Delegate to all regions
+LightController -> AndStateList : get(ErrorStatus)
+activate AndStateList
+AndStateList -> ErrorStateClass : evRun()
+activate ErrorStateClass
+note right : No transition (stays OK_STATE)
+ErrorStateClass --> AndStateList : handled
+deactivate ErrorStateClass
+AndStateList --> LightController : result
+deactivate AndStateList
+
+LightController -> AndStateList : get(ModeStatus)
+activate AndStateList
+AndStateList -> ModeStateClass : evRun()
+activate ModeStateClass
+
+ModeStateClass -> ModeStateClass : exitAction()
+note right : STARTINGUP → OPERATIONAL
+
+ModeStateClass -> Light : setMode(STEADY)
+activate Light
+Light --> ModeStateClass : ok
+deactivate Light
+
+ModeStateClass -> ModeStateClass : entryAction()
+note right : currentState = OPERATIONAL_STATE
+ModeStateClass --> AndStateList : transition complete
+deactivate ModeStateClass
+AndStateList --> LightController : result
+deactivate AndStateList
+
+LightController --> Client : event processed
+deactivate LightController
+
+=== Event: evWarning (Error Transition) ===
+Client -> LightController : evWarning()
+activate LightController
+
+LightController -> AndStateList : get(ErrorStatus)
+activate AndStateList
+AndStateList -> ErrorStateClass : evWarning()
+activate ErrorStateClass
+
+ErrorStateClass -> ErrorStateClass : exitAction()
+note right : OK → WARNING
+
+ErrorStateClass -> Light : setColor(YELLOW)
+activate Light
+Light --> ErrorStateClass : ok
+deactivate Light
+
+ErrorStateClass -> ErrorStateClass : entryAction()
+note right : currentState = WARNING_STATE
+ErrorStateClass --> AndStateList : transition complete
+deactivate ErrorStateClass
+AndStateList --> LightController : result
+deactivate AndStateList
+
+LightController -> AndStateList : get(ModeStatus)
+activate AndStateList
+AndStateList -> ModeStateClass : evWarning()
+activate ModeStateClass
+note right : No transition (stays OPERATIONAL)
+ModeStateClass --> AndStateList : handled
+deactivate ModeStateClass
+AndStateList --> LightController : result
+deactivate AndStateList
+
+LightController --> Client : event processed
+deactivate LightController
+
+=== Event: evError (Critical Error) ===
+Client -> LightController : evError()
+activate LightController
+
+LightController -> AndStateList : get(ErrorStatus)
+activate AndStateList
+AndStateList -> ErrorStateClass : evError()
+activate ErrorStateClass
+
+ErrorStateClass -> ErrorStateClass : exitAction()
+note right : WARNING → ERROR
+
+ErrorStateClass -> Light : setColor(RED)
+activate Light
+Light --> ErrorStateClass : ok
+deactivate Light
+
+ErrorStateClass -> ErrorStateClass : entryAction()
+note right : currentState = ERROR_STATE
+ErrorStateClass --> AndStateList : transition complete
+deactivate ErrorStateClass
+AndStateList --> LightController : result
+deactivate AndStateList
+
+LightController -> AndStateList : get(ModeStatus)
+activate AndStateList
+AndStateList -> ModeStateClass : evError()
+activate ModeStateClass
+note right : No transition (stays OPERATIONAL)
+ModeStateClass --> AndStateList : handled
+deactivate ModeStateClass
+AndStateList --> LightController : result
+deactivate AndStateList
+
+LightController --> Client : event processed
+deactivate LightController
+
+== Emergency Transition (Guard Condition) ==
+Client -> LightController : evAbort()
+activate LightController
+
+' Check guard conditions
+LightController -> AndStateList : get(ErrorStatus)
+activate AndStateList
+AndStateList -> ErrorStateClass : is_in(ERROR_STATE)
+activate ErrorStateClass
+ErrorStateClass --> AndStateList : true
+deactivate ErrorStateClass
+AndStateList --> LightController : true
+deactivate AndStateList
+
+LightController -> AndStateList : get(ModeStatus)
+activate AndStateList
+AndStateList -> ModeStateClass : is_in(OPERATIONAL_STATE)
+activate ModeStateClass
+ModeStateClass --> AndStateList : true
+deactivate ModeStateClass
+AndStateList --> LightController : true
+deactivate AndStateList
+
+note right of LightController : Guard condition satisfied:\nERROR_STATE AND OPERATIONAL_STATE
+
+' Transition to Emergency
+LightController -> LightController : exit_OnState()
+LightController -> LightController : exitNestedAndStates()
+
+' Cleanup orthogonal regions
+LightController -> AndStateList : Destroy(ErrorStatus)
+activate AndStateList
+AndStateList -> ErrorStateClass : Destroy()
+activate ErrorStateClass
+ErrorStateClass -> ErrorStateClass : Cleanup()
+ErrorStateClass --> AndStateList : destroyed
+deactivate ErrorStateClass
+AndStateList --> LightController : region removed
+deactivate AndStateList
+
+LightController -> AndStateList : Destroy(ModeStatus)
+activate AndStateList
+AndStateList -> ModeStateClass : Destroy()
+activate ModeStateClass
+ModeStateClass -> ModeStateClass : Cleanup()
+ModeStateClass --> AndStateList : destroyed
+deactivate ModeStateClass
+AndStateList --> LightController : region removed
+deactivate AndStateList
+
+LightController -> LightController : enter_EmergencyState()
+
+' Emergency actions
+LightController -> Light : setColor(RED)
+activate Light
+Light --> LightController : ok
+deactivate Light
+
+LightController -> Light : setMode(QUICKLY)
+activate Light
+Light --> LightController : ok
+deactivate Light
+
+LightController -> Klaxon : alarmOn()
+activate Klaxon
+Klaxon --> LightController : alarm activated
+deactivate Klaxon
+
+LightController --> Client : emergency state entered
+deactivate LightController
+
+== System Shutdown ==
+Client -> LightController : evDisable()
+activate LightController
+
+LightController -> LightController : exit_EmergencyState()
+
+LightController -> Klaxon : alarmOff()
+activate Klaxon
+Klaxon --> LightController : alarm deactivated
+deactivate Klaxon
+
+LightController -> LightController : enter_OffState()
+
+LightController -> Light : turnOff()
+activate Light
+Light --> LightController : ok
+deactivate Light
+
+LightController --> Client : system disabled
+deactivate LightController
+
+note over Client, Klaxon : "**Pattern Benefits:**\n• Clean separation of orthogonal concerns\n• Event delegation enables concurrent processing\n• Guard conditions can span multiple regions\n• Scalable architecture for complex state machines"
+
+@enduml

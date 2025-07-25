@@ -1,0 +1,45 @@
+Hardware Adapter Pattern
+The Hardware Adapter Pattern provides a way of adapting an existing hardware interface into
+the expectations of the application. This pattern is a straightforward derivative of the Adapter
+Pattern.
+3.3.1 Abstract
+The Hardware Adapter Pattern is useful when the application requires or uses one interface, but
+the actual hardware provides another. The pattern creates an element that converts between the
+two interfaces.
+3.3.2 Problem
+While hardware that performs similar functions tend to have similar interfaces, often the
+information they need and the set of services differ. Rather than rewrite the clients of the
+hardware device to use the provided interface, an adapter is created that provides the expected
+interface to the clients while converting the requests to and from the actual hardware interface.
+The Hardware Adapter Pattern is useful when you have hardware that meets the semantic need
+of the system but that has an incompatible interface. The goal of the pattern is to minimize the
+reworking of code when one hardware design or implementation is replaced with another.
+3.3.3 Pattern Structure
+The pattern structure is shown in Figure 3-3. The pattern extends the Hardware Proxy Pattern
+by adding a Hardware Adapter and explicitly showing the interface the client expects the
+hardware to support.
+3.3.4 Collaboration Roles
+This section describes the roles for this pattern.
+3.3.4.1 Adapter Client
+The adapter client expects to be invoking the services of a software element that represents the
+hardware, as specified by the Hardware Interface to Client interface. It is an element in the
+application system that expects to control, monitor, or use the hardware device.
+
+The Hardware Adapter performs “impedance matching” between the client and the Hardware
+Proxy. That is, service requests made by the Adapter Client are converted into a sequence of
+services that are available from the Hardware Proxy. This potentially includes both factoring of
+the service invocations and reformatting and restructuring the data.    
+3.3.4.3 Hardware Interface to Client
+This interface represents the set of services and parameter lists that the client expects the
+Hardware Proxy to provide. As an interface, it is a collection of service specifications and has no
+implementation. The implementation in this case is provided by the Hardware Adapter Class.
+3.3.4.4 Hardware Device
+This element is described in the Hardware Proxy Pattern.
+3.3.4.5 Hardware Proxy
+This element is described in the Hardware Proxy Pattern.
+
+Consequences
+The use of this pattern allows various Hardware Proxies and their related hardware devices to
+be used as-is in different applications, while at the same time allowing existing applications to
+use different hardware devices without change. The key is that the adapter provides the
+connective glue to match the Hardware Proxy to the application. This means that it will be

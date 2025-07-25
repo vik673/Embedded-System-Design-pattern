@@ -1,0 +1,140 @@
+@startuml MultipleReceptorPattern_ClassDiagram
+
+!theme plain
+title Multiple Event Receptor Pattern - Class Diagram
+
+' Define the color scheme
+skinparam class {
+    BackgroundColor<<main>> LightBlue
+    BackgroundColor<<utility>> LightGreen
+    BackgroundColor<<client>> LightYellow
+    BorderColor Black
+    ArrowColor Black
+}
+
+' Enumerations
+enum TSTATETYPE {
+    NULL_STATE
+    NONUMBER_STATE
+    GOTNUMBER_STATE
+}
+
+enum TSUBSTATETYPE {
+    NULL_SSTATE
+    PROCESSINGWHOLEPART_SSTATE
+    PROCESSINGFRACTIONALPART_SSTATE
+}
+
+' Mutex class for thread safety
+class Mutex <<utility>> {
+    - locked: int
+    - owner_id: int
+    --
+    + Create(): Mutex*
+    + Destroy(me: Mutex*): void
+    + Init(me: Mutex*): void
+    + lock(me: Mutex*): int
+    + release(me: Mutex*): int
+    + isLocked(me: Mutex*): int
+}
+
+' Main TokenizerMultiReceptor class
+class TokenizerMultiReceptor <<main>> {
+    ' Business Logic Attributes
+    - ch: char
+    - result: double
+    - tensPlace: double
+    
+    ' State Management Attributes
+    - stateID: TSTATETYPE
+    - subStateID: TSUBSTATETYPE
+    - itsMutex: Mutex*
+    
+    --
+    ' Constructors/Destructors
+    + Create(): TokenizerMultiReceptor*
+    + Destroy(me: TokenizerMultiReceptor*): void
+    + Init(me: TokenizerMultiReceptor*): void
+    + Cleanup(me: TokenizerMultiReceptor*): void
+    
+    --
+    ' Event Receptors (Multiple Receptor Pattern Core)
+    + evDigit(me: TokenizerMultiReceptor*, c: char): void
+    + evDot(me: TokenizerMultiReceptor*): void
+    + evEndOfString(me: TokenizerMultiReceptor*): void
+    + evWhiteSpace(me: TokenizerMultiReceptor*): void
+    
+    --
+    ' State Entry Actions
+    + enter_GotNumber(me: TokenizerMultiReceptor*): void
+    + enter_NoNumber(me: TokenizerMultiReceptor*): void
+    + enter_ProcessingFractionalPart(me: TokenizerMultiReceptor*): void
+    + enter_ProcessingWholePart(me: TokenizerMultiReceptor*): void
+    
+    --
+    ' State Exit Actions
+    + exit_GotNumber(me: TokenizerMultiReceptor*): void
+    + exit_NoNumber(me: TokenizerMultiReceptor*): void
+    + exit_ProcessingFractionalPart(me: TokenizerMultiReceptor*): void
+    + exit_ProcessingWholePart(me: TokenizerMultiReceptor*): void
+    
+    --
+    ' Accessors
+    + getItsMutex(me: TokenizerMultiReceptor*): Mutex*
+    + setItsMutex(me: TokenizerMultiReceptor*, mutex: Mutex*): void
+    + getResult(me: TokenizerMultiReceptor*): double
+    + getState(me: TokenizerMultiReceptor*): TSTATETYPE
+    + getSubState(me: TokenizerMultiReceptor*): TSUBSTATETYPE
+}
+
+' Client class
+class TokenizerClient <<client>> {
+    + processString(tokenizer: TokenizerMultiReceptor*, input: char*): void
+    + demonstrateTokenizer(): void
+    + interactiveMode(): void
+    + main(argc: int, argv: char**): int
+}
+
+' Utility functions
+class TokenizerTypes <<utility>> {
+    + digit(c: char): int
+}
+
+' Relationships
+TokenizerMultiReceptor ||--|| TSTATETYPE : uses
+TokenizerMultiReceptor ||--|| TSUBSTATETYPE : uses
+TokenizerMultiReceptor "1" *-- "0..1" Mutex : protects with
+TokenizerClient "1" --> "1" TokenizerMultiReceptor : uses
+TokenizerMultiReceptor ..> TokenizerTypes : uses
+
+' Notes
+note right of TokenizerMultiReceptor
+  <b>Multiple Event Receptor Pattern</b>
+  
+  Each event has its own receptor method:
+  • evDigit() - processes digit characters
+  • evDot() - processes decimal points  
+  • evEndOfString() - signals input end
+  • evWhiteSpace() - processes whitespace
+  
+  This simplifies implementation by
+  dividing event handling logic.
+end note
+
+note bottom of Mutex
+  Ensures deterministic run-to-completion
+  semantics by preventing interruption
+  during state transitions.
+end note
+
+note top of TSTATETYPE
+  High-level states represent
+  the main parsing context
+end note
+
+note top of TSUBSTATETYPE
+  Sub-states provide finer
+  granularity within GotNumber state
+end note
+
+@enduml

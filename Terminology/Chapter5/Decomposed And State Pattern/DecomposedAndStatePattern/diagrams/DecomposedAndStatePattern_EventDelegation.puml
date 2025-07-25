@@ -1,0 +1,201 @@
+@startuml DecomposedAndStatePattern_EventDelegation
+
+!theme plain
+title Decomposed AND-State Pattern - Event Delegation Detail\n(Concurrent Processing of Orthogonal Regions)
+
+actor Client
+participant "LightController\n<<Context>>" as LC
+participant "AndStateList\n<<ErrorStatus>>" as ASL1
+participant "AndStateList\n<<ModeStatus>>" as ASL2
+participant "ErrorStateClass\n<<Region>>" as ESC
+participant "ModeStateClass\n<<Region>>" as MSC
+participant "Light\n<<Device>>" as Light
+
+== System State Before Event ==
+note over LC : "Current State: ON_STATE\nActive Regions:\n• Error: WARNING_STATE\n• Mode: OPERATIONAL_STATE"
+
+== Event Broadcasting Pattern ==
+
+Client -> LC : evShutDown()
+activate LC
+
+note right of LC : "Event Delegation Strategy:\n1. Broadcast to all active regions\n2. Each region processes independently\n3. Combine results"
+
+LC -> ASL1 : delegateEvent(evShutDown)
+activate ASL1
+ASL1 -> ESC : evShutDown()
+activate ESC
+
+note right of ESC : "Event Analysis:\nevShutDown not defined\nfor Error region states\n→ No transition"
+
+ESC --> ASL1 : EVENT_HANDLED (no transition)
+deactivate ESC
+ASL1 --> LC : region_result = NO_TRANSITION
+deactivate ASL1
+
+LC -> ASL2 : delegateEvent(evShutDown)
+activate ASL2
+ASL2 -> MSC : evShutDown()
+activate MSC
+
+note right of MSC : "Event Analysis:\nevShutDown: OPERATIONAL\n→ SHUTTINGDOWN\n✓ Transition exists"
+
+MSC -> MSC : exitAction(OPERATIONAL_STATE)
+MSC -> Light : setMode(SLOWLY)
+activate Light
+Light --> MSC : success
+deactivate Light
+
+MSC -> MSC : entryAction(SHUTTINGDOWN_STATE)
+note right of MSC : "currentState = SHUTTINGDOWN_STATE"
+
+MSC --> ASL2 : EVENT_HANDLED (transitioned)
+deactivate MSC
+ASL2 --> LC : region_result = TRANSITIONED
+deactivate ASL2
+
+LC -> LC : consolidateResults()
+note right of LC : "Result Analysis:\n• Error region: No change\n• Mode region: Transitioned\n• Overall: Success"
+
+LC --> Client : event_processed = SUCCESS
+deactivate LC
+
+== Another Event - Concurrent Effect ==
+
+Client -> LC : evError()
+activate LC
+
+LC -> ASL1 : delegateEvent(evError)
+activate ASL1
+ASL1 -> ESC : evError()
+activate ESC
+
+note right of ESC : "Event Analysis:\nevError: WARNING\n→ ERROR\n✓ Transition exists"
+
+ESC -> ESC : exitAction(WARNING_STATE)
+ESC -> Light : setColor(RED)
+activate Light
+Light --> ESC : success
+deactivate Light
+
+ESC -> ESC : entryAction(ERROR_STATE)
+note right of ESC : "currentState = ERROR_STATE"
+
+ESC --> ASL1 : EVENT_HANDLED (transitioned)
+deactivate ESC
+ASL1 --> LC : region_result = TRANSITIONED
+deactivate ASL1
+
+LC -> ASL2 : delegateEvent(evError)
+activate ASL2
+ASL2 -> MSC : evError()
+activate MSC
+
+note right of MSC : "Event Analysis:\nevError not defined\nfor Mode region states\n→ No transition"
+
+MSC --> ASL2 : EVENT_HANDLED (no transition)
+deactivate MSC
+ASL2 --> LC : region_result = NO_TRANSITION
+deactivate ASL2
+
+LC --> Client : event_processed = SUCCESS
+deactivate LC
+
+== Complex Event - Guard Condition ==
+
+note over LC : "Current State: ON_STATE\nActive Regions:\n• Error: ERROR_STATE\n• Mode: SHUTTINGDOWN_STATE"
+
+Client -> LC : evAbort()
+activate LC
+
+note right of LC : "Guard Condition Check:\nRequires ERROR_STATE AND\nOPERATIONAL_STATE"
+
+LC -> ASL1 : queryState()
+activate ASL1
+ASL1 -> ESC : is_in(ERROR_STATE)
+activate ESC
+ESC --> ASL1 : true
+deactivate ESC
+ASL1 --> LC : error_condition = true
+deactivate ASL1
+
+LC -> ASL2 : queryState()
+activate ASL2
+ASL2 -> MSC : is_in(OPERATIONAL_STATE)
+activate MSC
+MSC --> ASL2 : false (in SHUTTINGDOWN)
+deactivate MSC
+ASL2 --> LC : mode_condition = false
+deactivate ASL2
+
+LC -> LC : evaluateGuard()
+note right of LC : "Guard Evaluation:\nERROR_STATE=true AND\nOPERATIONAL_STATE=false\n→ Condition FAILED"
+
+LC --> Client : event_rejected = GUARD_FAILED
+deactivate LC
+
+== Reset Event - Synchronous Processing ==
+
+Client -> LC : reset()
+activate LC
+
+note right of LC : "Reset Strategy:\n1. Exit all regions\n2. Re-enter with defaults\n3. Synchronize state"
+
+par Exit Phase
+    LC -> ASL1 : exitRegion()
+    activate ASL1
+    ASL1 -> ESC : exitAction()
+    activate ESC
+    ESC -> ESC : currentState = NULL_ERROR_STATE
+    ESC --> ASL1 : exited
+    deactivate ESC
+    ASL1 --> LC : region_exited
+    deactivate ASL1
+and
+    LC -> ASL2 : exitRegion()
+    activate ASL2
+    ASL2 -> MSC : exitAction()
+    activate MSC
+    MSC -> MSC : currentState = NULL_MODE_STATE
+    MSC --> ASL2 : exited
+    deactivate MSC
+    ASL2 --> LC : region_exited
+    deactivate ASL2
+end
+
+par Entry Phase
+    LC -> ASL1 : enterRegion()
+    activate ASL1
+    ASL1 -> ESC : entryAction()
+    activate ESC
+    ESC -> ESC : currentState = OK_STATE (default)
+    ESC -> Light : setColor(GREEN)
+    activate Light
+    Light --> ESC : success
+    deactivate Light
+    ESC --> ASL1 : entered
+    deactivate ESC
+    ASL1 --> LC : region_entered
+    deactivate ASL1
+and
+    LC -> ASL2 : enterRegion()
+    activate ASL2
+    ASL2 -> MSC : entryAction()
+    activate MSC
+    MSC -> MSC : currentState = STARTINGUP_STATE (default)
+    MSC -> Light : setMode(QUICKLY)
+    activate Light
+    Light --> MSC : success
+    deactivate Light
+    MSC --> ASL2 : entered
+    deactivate MSC
+    ASL2 --> LC : region_entered
+    deactivate ASL2
+end
+
+LC --> Client : reset_complete = SUCCESS
+deactivate LC
+
+note over Client, Light : "**Event Delegation Benefits:**\n• Loose coupling between regions\n• Independent processing capabilities\n• Scalable for multiple orthogonal concerns\n• Supports complex guard conditions\n• Enables concurrent state evolution"
+
+@enduml

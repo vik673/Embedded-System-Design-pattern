@@ -1,0 +1,155 @@
+@startuml ChannelPattern_CoreSequence
+
+!theme plain
+
+title Channel Pattern - Core Processing Flow
+
+participant "Client" as Client
+participant "Channel" as CH
+participant "SensorDeviceDriver" as Sensor
+participant "Transform 1" as T1
+participant "Transform 2" as T2
+participant "Transform N" as TN
+participant "ActuatorDeviceDriver" as Actuator
+
+== Channel Initialization ==
+
+Client -> CH : Channel_Create()
+activate CH
+
+Client -> CH : setSensorDriver(sensor)
+Client -> CH : setFirstTransform(transform1)
+Client -> T1 : setNextTransform(transform2)
+Client -> T2 : setNextTransform(transformN)
+Client -> TN : setActuatorDriver(actuator)
+Client -> CH : setActuatorDriver(actuator)
+
+Client -> CH : startChannel()
+CH -> Sensor : initializeSensor()
+activate Sensor
+CH -> Actuator : initializeActuator()
+activate Actuator
+
+== Core Processing Loop ==
+
+loop Processing Cycle
+
+    Client -> CH : processChannel()
+    
+    ' Data Acquisition Phase
+    CH -> Sensor : startProcessing()
+    Sensor -> Sensor : readSensor()
+    note right of Sensor : Acquire raw data\nfrom physical sensor
+    
+    alt Valid Sensor Data
+        Sensor -> T1 : processData(rawData)
+        activate T1
+        note right of T1 : Transform 1:\nProcess and modify data
+        
+        T1 -> T1 : performTransformation()
+        
+        ' Chain processing through transforms
+        T1 -> T2 : processData(transformedData1)
+        activate T2
+        note right of T2 : Transform 2:\nFurther process data
+        
+        T2 -> T2 : performTransformation()
+        
+        T2 -> TN : processData(transformedData2)
+        activate TN
+        note right of TN : Transform N:\nFinal processing step
+        
+        TN -> TN : performTransformation()
+        
+        ' Actuation Phase
+        TN -> Actuator : actuate(finalData)
+        note right of Actuator : Control physical\nactuator device
+        
+        Actuator -> Actuator : validateValue(finalData)
+        
+        alt Valid Actuator Value
+            Actuator -> Actuator : controlPhysicalDevice(finalData)
+            Actuator --> TN : actuation_success
+        else Invalid Actuator Value
+            Actuator -> Actuator : setErrorState(INVALID_VALUE)
+            Actuator --> TN : actuation_failed
+        end
+        
+        TN --> T2 : processing_complete
+        deactivate TN
+        T2 --> T1 : processing_complete
+        deactivate T2
+        T1 --> Sensor : processing_complete
+        deactivate T1
+        
+    else Invalid Sensor Data
+        Sensor -> Sensor : setErrorState(INVALID_DATA)
+        note right of Sensor : Handle sensor error:\n- Log error\n- Skip processing\n- Use default values
+        Sensor --> CH : sensor_error
+    end
+    
+    Sensor --> CH : processing_cycle_complete
+    CH --> Client : channel_processing_complete
+
+end
+
+== Error Handling ==
+
+alt Transform Error
+    T1 -> T1 : performTransformation()
+    T1 -> T1 : Transformation failed
+    note right of T1 : Error scenarios:\n- Invalid input data\n- Processing overflow\n- Configuration error
+    
+    T1 -> T1 : setErrorState(TRANSFORM_ERROR)
+    T1 --> Sensor : transform_error
+    
+    ' Chain can continue with default/safe values
+    T1 -> T2 : processData(safeDefaultValue)
+    note right of T1 : Fault tolerance:\n- Use safe default\n- Continue processing\n- Report error state
+    
+else Actuator Error
+    Actuator -> Actuator : controlPhysicalDevice(finalData)
+    Actuator -> Actuator : Hardware fault detected
+    note right of Actuator : Actuator faults:\n- Communication failure\n- Hardware malfunction\n- Safety limits exceeded
+    
+    Actuator -> Actuator : enterSafeMode()
+    Actuator -> Actuator : setErrorState(HARDWARE_ERROR)
+    note right of Actuator : Safety response:\n- Safe operating state\n- Error reporting\n- Automatic recovery attempt
+end
+
+== Dynamic Reconfiguration ==
+
+Client -> CH : stopChannel()
+CH -> Sensor : stopProcessing()
+CH -> Actuator : disable()
+
+' Reconfigure processing chain
+Client -> T1 : setNextTransform(newTransform)
+Client -> CH : setFirstTransform(alternativeTransform)
+
+Client -> CH : startChannel()
+note over CH : Channel Pattern benefits:\n- Runtime reconfiguration\n- Modular component swapping\n- Flexible pipeline architecture
+
+== System Shutdown ==
+
+Client -> CH : stopChannel()
+CH -> Sensor : shutdownSensor()
+CH -> Actuator : shutdownActuator()
+
+deactivate Sensor
+deactivate Actuator
+
+Client -> CH : Channel_Destroy()
+deactivate CH
+
+note over Client
+    **Channel Pattern Advantages:**
+    • Modular design with clear interfaces
+    • Configurable processing pipelines  
+    • Isolated error handling per component
+    • Runtime reconfiguration capability
+    • Separation of concerns between stages
+    • Testability of individual components
+end note
+
+@enduml

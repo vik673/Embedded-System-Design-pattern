@@ -1,0 +1,1478 @@
+AND-States
+The last two patterns in the chapter will deal with the implementation of AND-states. For these
+patterns, we’ll use the state machine from Figure 5-7 as the example state machine with
+AND-states and we’ll add a few actions to make it more “real.” Figure 5-20 shows the
+example state machine we will demonstrate with the pattern.
+The semantics of AND-states is that they are “logically concurrent.” This means that in some
+sense they execute simultaneously, but what does that mean in a world of run-to-completion
+semantics? If two AND-states process different events, then AND-states are more of a
+(significant) notational convenience. Simultaneity only has importance when the same event is
+processed within two AND-states. In that case, what is the meaning of concurrency? In this
+context, it means that the semantics of the system are not dependent upon which AND-state
+processes the event first. It also implies that when AND-states are active, each active AND-state
+must receive, in some sense, its own copy of the event sent to the state machine, and is free to
+act on it or discard it as appropriate. What we cannot rely upon is which AND-state will act
+on the event first5
+. If we need to ensure that they execute in a particular order, then perhaps
+AND-states were not the appropriate mechanism to employ.
+A naïve but overly heavyweight approach would be to spawn threads for the different state
+machines. While this can be made to work, in practice I have never seen AND-states
+implemented in this fashion, and for good reason. The logical concurrency really only requires:
+•	 events are handled run-to-completion
+•	 all AND-state event handlers must complete before the next event sent to the state machine
+is processed
+So which AND-state processes the event first? The upper one? The one you drew first? The one
+that appears first in the code? It doesn’t matter. That’s the point.
+Note that this does raise the specter of race conditions, as discussed in Chapter 4. For example,
+consider the state machine in Figure 5-21. It contains a race condition. The e1 event is handled
+in two AND-states; each of which has an action manipulating the variable x. If the upper ANDstate processes its event first6
+, the resulting value of x is 33. If the lower one processes it first,
+the answer is 40.
+Don’t do that!7
+If you need to force a specific order of event execution, then you can use a simple pattern called
+event propagation. If you want to force the upper AND-state to execute first, then create a
+different event for the second transition and generate that event in an action of the first
+transition. This pattern, applied to the previous figure, is shown in Figure 5-22, where the GEN
+macro generates the event using whatever synchronous or asynchronous approach you’ve
+implemented for your state machine.
+There are a number of ways commonly used to implement AND-states. The first, and least
+desirable, is to flatten the state space. This is problematic, as was pointed out in Figure 5-6
+because of state explosion – you must compute the cross product of the state spaces and that’s
+often very ugly and difficult to read and understand because of the sheer number of resulting
+states. It does work, however, and in simple cases it might be easiest.
+A more common solution is to decompose the object owning the AND-states into a set of
+different objects that communicate. This is the Decomposed AND-State Pattern discussed
+below. It is also possible to elaborate one of the previous patterns we’ve presented into
+managing multiple AND-states in the event receptors. There are other solutions as well, but
+these are the most common.
+5.8 Decomposed AND-State Pattern
+This pattern extends the State Pattern to implement AND-states. It does so by creating a
+collaboration of different objects, each of which is allocated one of the AND-states.
+5.8.1 Abstract
+The Decomposed And-State Pattern takes an object that owns a state machine and decomposes
+it into a set of objects that interact. The main object owns the overarching state machine and
+other objects own individual AND-states.
+5.8.2 Problem
+This pattern addresses the problem of implementing state machines that contain orthogonal
+regions (AND-states) in a way that preserves the AND-state design.
+5.8.3 Pattern Structure
+Figure 5-23 shows the structure of the pattern. Instead of a singular class that implements the
+state machine, the state problem is decomposed into a collaboration of objects that relate to the
+Context.
+5.8.4 Collaboration Roles
+This section describes the pattern roles.
+5.8.4.1 AbstractAndStateClass
+This class is an abstraction of the various concrete AND-state classes. It provides an event handler
+for each event received by the Context and a link back to the Context for execution of actions
+and manipulation of variables within the Context. In the C implementation, this is a notional
+class, not usually represented directly but it does show what is inherited by the subclasses.
+5.8.4.2 ActionSet
+This class contains a set of pointers, one per incoming event. It is owned by the AbstractAndStateClass and implemented by the ConcreteAndStateClass. In the initializer of
+the latter class, the function pointers are set to point to the functions that implement the actions
+within that concrete state.
+5.8.4.3 AndStateList
+This class maintains a list of orthogonal regions (containing all the nested states within an
+AND-state) for a given composite. There is an entry for every state; if the list is empty, then that
+state has no nested AND-states. If it is not empty, then the list entry contains a list of the
+orthogonal regions of AND-states; each region is represented by a
+ConcreteAndStateClass and it implements all the nested states within that region.
+Consider the example state machine in Figure 5-20. STATE_N in this case is 1. The 0-th
+state is the Off state; this state has no nested AND-states so this list entry is empty. The 1st
+state is the On state; this state has two nested orthogonal regions, Color and Rate. Thus the
+Context list entry for State 1 is not empty. In this case, the list entry for State 1 has two
+lists, one for each orthogonal region. The ConcreteAndStateClass Color manages
+three states – Red, Yellow, and Green. The ConcreteAndStateClass Rate also
+manages three states – Steady, Flashing_Slowly, and Flashing_Quickly. So the
+lists look like this:
+• Context state list:
+• State 0 (Off) – Empty
+• State 1 (On) list:
+○ Color (manages Red, Yellow, Green states)
+○ Rate (manages Steady, Flashing_Slowly, Flashing_Quickly states)
+You’ll notice that this gives us lists of lists of states. This is often implemented with arrays
+because the sizes of these lists are known at design time. If you need to further nest AND-states,
+you can add additional levels of lists, with appropriate behavior at each level.
+5.8.4.4 ConcreteAndStateClass
+This represents one of the AND-state classes. The design will contain one such class, with its own
+implementation of its event receptors, for each AND-state. In the basic pattern, each and-state
+class will itself use the Multiple Event Receptor Pattern, but other approaches are possible.
+5.8.4.5 ConcreteAndStateType
+Each AND-state has its unique set of nested states; this type is an enumerated list of them. One
+such type will exist for each ConcreteAndStateClass. This class is not visible to the clients
+of the Context.
+5.8.4.6 Context
+The Context is the ultimate owner of the state machine. It has the variables and functions that
+are manipulated by the ConcreteAndStateClasses. This class presents a set of event
+receptors to its clients (alternatively, the Single Event Receptor Pattern or other state pattern can
+be mixed in here as well). The basic rules of state change are enforced here:
+•	 If the new state being entered has no nested AND-states, it executes normally as in the
+Multiple Event Receptor Pattern.
+•	 If the new state being entered has nested AND-states, then its entry action is performed
+prior to the entry actions of the entered nested AND-states.
+•	 If the composite state having AND-states is unchanged (that is, the event transition is local
+within the current composite state), then the event is delegated to its set of AND-state
+classes for handling, including the execution of the actions.
+•	 If the composite state is left, then the exit actions of the composite state execute after the
+exit actions for each of its nested AND-states.
+5.8.5 Consequences
+This pattern provides extensible mechanisms for managing state machines that contain ANDstates. Each class is relatively simple because of the delegation of responsibilities for state
+management – the Context manages the high level states, and the
+ConcreteAndStateClasses manage the nested AND-states.
+On the other hand, this pattern does require the management of lists, of lists which will
+normally be managed as lists of pointers to lists of pointers. This level of indirection, while
+powerful, can be the source of obscure mistakes if not carefully managed.
+5.8.6 Implementation Strategies
+As mentioned in the previous section, the common implementation of the lists is as arrays of
+pointers to arrays of pointers.
+5.8.7 Related Patterns
+This pattern can be used in conjunction with the state pattern – in this case, each state class will
+be the Context for its AND-states.
+5.8.8 Example
+In the example shown in Figure 5-24, the LightController plays the part of the Context
+pattern role and the ErrorStateClass and ModeStateClass play the part of the
+ConcreteAndStateClass in the pattern. Supporting elements, such as enumerated types and
+the StateActionSet are also shown.
+The code for this example is shown in the next several code listings. The LightPkg.h file in
+Code Listing 5-28 holds the basic types used in the other files.
+#ifndef LightPkg_H
+
+#define LightPkg_H
+
+struct AndStateList;
+
+struct DecompBuilder;
+
+struct DecompClient;
+
+struct ErrorStateClass;
+
+struct Klaxon;
+
+struct Light;
+
+struct LightController;
+
+struct ModeStateClass;
+
+struct Mutex;
+
+struct StateActionSet;
+
+typedef enum HighLevelLightStates {
+
+NULL_STATE,
+
+OFF_STATE,
+
+ON_STATE,
+
+EMERGENCY_STATE
+
+} HighLevelLightStates;
+typedef enum ColorType {
+
+RED,
+
+YELLOW,
+
+GREEN
+
+} ColorType;
+typedef enum FlashType {
+
+STEADY,
+
+SLOWLY,
+
+QUICKLY
+
+} FlashType;
+typedef enum ErrorStatesType {
+
+NULL_ERROR_STATE,
+
+OK_STATE,
+
+WARNING_STATE,
+
+ERROR_STATE
+
+} ErrorStatesType;
+typedef enum ModeStatesType {
+
+NULL_MODE_STATE,
+
+OPERATIONAL_STATE,
+
+STARTINGUP_STATE,
+
+SHUTTINGDOWN_STATE
+
+} ModeStatesType;
+typedef enum On_State_Regions {
+
+ERRORSTATUS_ANDSTATE,
+
+MODE_ANDSTATE
+
+} On_State_Regions;
+#define MAX_ANDSTATES 2
+/* This action pointer accepts the me object pointer and no other parameters. */
+
+typedef int (*ActionPtr0)(void*);
+
+/* This action pointer accepts the me object pointer and no other parameters. */
+
+typedef int (*ActionPtr1)(void*, int);
+
+#endif
+Code Listing 5-28: LightPkg.h
+The LightController class provides the state machine context for the example. It is shown in
+Code Listing 5-29 and Code Listing 5-30.
+#ifndef LightController_H
+
+#define LightController_H
+
+#include "LightPkg.h"
+
+#include "AndStateList.h"
+
+#include "ErrorStateClass.h"
+
+#include "ModeStateClass.h"
+
+struct Klaxon;
+
+struct Light;
+
+struct Mutex;
+
+typedef struct LightController LightController;
+struct LightController {
+
+struct AndStateList* asList[EMERGENCY_STATE+1];
+
+HighLevelLightStates currentState;
+
+struct Klaxon* itsKlaxon;
+
+struct Light* itsLight;
+
+struct Mutex* itsMutex;
+
+};
+void LightController_evEnable(LightController* const me);
+
+void LightController_evDisable(LightController* const me);
+
+void LightController_reset(LightController* const me);
+
+void LightController_evOk(LightController* const me);
+
+void LightController_evWarning(LightController* const me);
+
+void LightController_evError(LightController* const me);
+
+void LightController_evRun(LightController* const me);
+
+void LightController_evShutDown(LightController* const me);
+
+void LightController_evAbort(LightController* const me);
+
+void LightController_Init(LightController* const me);
+
+void LightController_Cleanup(LightController* const me);
+
+void LightController_enter_OffState(LightController* const me, HighLevelLightStates
+newState);
+void LightController_enter_OnState(LightController* const me, HighLevelLightStates
+newState);
+void LightController_enter_EmergencyState(LightController* const me, HighLevelLightStates newState);
+void LightController_exit_OffState(LightController* const me);
+void LightController_exit_OnState(LightController* const me);
+void LightController_exit_EmergencyState(LightController* const me);
+void LightController_enterNestedAndStates(LightController* const me, HighLevelLightStates next);
+void LightController_exitNestedAndStates(LightController* const me);
+struct Klaxon* LightController_getItsKlaxon(const LightController* const me);
+void LightController_setItsKlaxon(LightController* const me, struct Klaxon* p_Klaxon);
+struct Light* LightController_getItsLight(const LightController* const me);
+void LightController_setItsLight(LightController* const me, struct Light* p_Light);
+struct Mutex* LightController_getItsMutex(const LightController* const me);
+void LightController_setItsMutex(LightController* const me, struct Mutex* p_Mutex);
+LightController * LightController_Create(void);
+void LightController_Destroy(LightController* const me);
+#endif
+Code Listing 5-29: LightController.h
+#include "LightController.h"
+
+#include "Klaxon.h"
+
+#include "Light.h"
+
+#include "Mutex.h"
+
+static void cleanUpRelations(LightController* const me);
+void LightController_evEnable(LightController* const me) {
+
+HighLevelLightStates newState;
+
+Mutex_lock(me->itsMutex);
+switch (me->currentState) {
+case OFF_STATE:
+
+newState = ON_STATE;
+
+LightController_exit_OffState(me);
+
+/* transition to On state */
+
+Light_turnOn(me->itsLight);
+
+Light_setColor(me->itsLight, RED);
+
+Light_setMode(me->itsLight, QUICKLY);
+
+/* enter new state */
+
+LightController_enter_OnState(me, newState);
+
+me->currentState = newState;
+ 
+ break;
+
+case ON_STATE:
+
+case EMERGENCY_STATE:
+
+break;
+};
+Mutex_release(me->itsMutex);
+}
+void LightController_evDisable(LightController* const me) {
+HighLevelLightStates newState;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case ON_STATE:
+
+newState = OFF_STATE;
+
+/* exit nested states */
+
+LightController_exit_OnState(me);
+
+/* transition to OFF state */
+Light_turnOff(me->itsLight);
+/* enter new state */
+
+LightController_enter_OffState(me, newState);
+
+me->currentState = newState;
+
+break;
+
+case OFF_STATE:
+case EMERGENCY_STATE:
+
+break;
+
+};
+
+Mutex_release(me->itsMutex);
+}
+void LightController_reset(LightController* const me) {
+HighLevelLightStates newState;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case ON_STATE:
+
+/* exit and-states, then outer state */
+
+newState = ON_STATE;
+
+LightController_exit_OnState(me);
+
+/* note no transition actions */
+
+/* enter outer state, then and-states */
+
+LightController_enter_OnState(me, newState);
+
+me->currentState = newState;
+
+break;
+
+case OFF_STATE:
+
+case EMERGENCY_STATE:
+
+break;
+ 
+ };
+Mutex_release(me->itsMutex);
+}
+void LightController_evOk(LightController* const me) {
+ErrorStateClass* sPtr;
+ActionPtr0 aPtr;
+HighLevelLightStates newState;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case OFF_STATE:
+
+break;
+
+case ON_STATE:
+
+/* note we're not exiting On state */
+
+/* so just delegate to and-states */
+
+newState = me->currentState;
+
+if (me->asList[newState]) {
+
+sPtr = me->asList[newState]->andStates[ERRORSTATUS_ANDSTATE];
+if (sPtr) {
+
+aPtr = sPtr->aSet.evOkHandler;
+
+if (aPtr)
+
+aPtr(sPtr);
+};
+sPtr = me->asList[newState]->andStates[MODE_ANDSTATE];
+if (sPtr) {
+aPtr = sPtr->aSet.evOkHandler;
+
+if (aPtr)
+
+aPtr(sPtr);
+
+};
+
+};
+
+break;
+
+case EMERGENCY_STATE:
+
+break;
+
+};
+
+Mutex_release(me->itsMutex);
+
+}
+void LightController_evWarning(LightController* const me) {
+ErrorStateClass* sPtr;
+ActionPtr0 aPtr;
+HighLevelLightStates newState;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case OFF_STATE:
+
+break;
+
+case ON_STATE:
+
+/* note we're not exiting On state */
+
+/* so just delegate to and-states */
+
+newState = me->currentState;
+if (me->asList[newState]) {
+sPtr = me->asList[newState]->andStates[ERRORSTATUS_ANDSTATE];
+if (sPtr) {
+aPtr = sPtr->aSet.evWarningHandler;
+
+if (aPtr)
+
+aPtr(sPtr);
+
+};
+sPtr = me->asList[newState]->andStates[MODE_ANDSTATE];
+if (sPtr) {
+aPtr = sPtr->aSet.evWarningHandler;
+
+if (aPtr)
+
+aPtr(sPtr);
+
+};
+
+};
+
+break;
+
+case EMERGENCY_STATE:
+
+break;
+
+};
+
+Mutex_release(me->itsMutex);
+
+/*#]*/
+
+}
+void LightController_evError(LightController* const me) {
+ErrorStateClass* sPtr;
+ActionPtr0 aPtr;
+HighLevelLightStates newState;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case OFF_STATE:
+
+break;
+
+case ON_STATE:
+
+/* note we're not exiting On state */
+
+/* so just delegate to AND-states */
+
+newState = me->currentState;
+
+if (me->asList[newState]) {
+
+sPtr = me->asList[newState]->andStates[ERRORSTATUS_ANDSTATE];
+if (sPtr) {
+
+aPtr = sPtr->aSet.evErrorHandler;
+
+if (aPtr)
+
+aPtr(sPtr);
+};
+sPtr = me->asList[newState]->andStates[MODE_ANDSTATE];
+if (sPtr) {
+aPtr = sPtr->aSet.evErrorHandler;
+if (aPtr)
+
+aPtr(sPtr);
+
+};
+
+};
+
+break;
+
+case EMERGENCY_STATE:
+ 
+ break;
+
+};
+
+Mutex_release(me->itsMutex);
+
+}
+void LightController_evRun(LightController* const me) {
+ErrorStateClass* sPtr;
+ActionPtr0 aPtr;
+HighLevelLightStates newState;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case OFF_STATE:
+
+break;
+
+case ON_STATE:
+
+/* note we're not exiting On state */
+
+/* so just delegate to and-states */
+
+newState = me->currentState;
+
+if (me->asList[newState]) {
+
+sPtr = me->asList[newState]->andStates[ERRORSTATUS_ANDSTATE];
+if (sPtr) {
+
+aPtr = sPtr->aSet.evRunHandler;
+
+if (aPtr)
+
+aPtr(sPtr);
+};
+sPtr = me->asList[newState]->andStates[MODE_ANDSTATE];
+if (sPtr) {
+aPtr = sPtr->aSet.evRunHandler;
+if (aPtr)
+aPtr(sPtr);
+};
+};
+break;
+case EMERGENCY_STATE:
+break;
+};
+Mutex_release(me->itsMutex);
+}
+void LightController_evShutDown(LightController* const me) {
+ErrorStateClass* sPtr;
+ActionPtr0 aPtr;
+HighLevelLightStates newState;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case OFF_STATE:
+
+break;
+
+case ON_STATE:
+
+/* note we're not exiting On state */
+
+/* so just delegate to and-states */
+
+newState = me->currentState;
+
+if (me->asList[newState]) {
+sPtr = me->asList[newState]->andStates[ERRORSTATUS_ANDSTATE];
+if (sPtr) {
+aPtr = sPtr->aSet.evShutDownHandler;
+
+if (aPtr)
+
+aPtr(sPtr);
+
+};
+sPtr = me->asList[newState]->andStates[MODE_ANDSTATE];
+if (sPtr) {
+aPtr = sPtr->aSet.evShutDownHandler;
+if (aPtr)
+aPtr(sPtr);
+};
+};
+break;
+case EMERGENCY_STATE:
+break;
+};
+Mutex_release(me->itsMutex);
+}
+void LightController_evAbort(LightController* const me) {
+ErrorStateClass* sPtr;
+ActionPtr1 is_inPtr;
+HighLevelLightStates newState;
+int precond1=0, precond2=0;
+Mutex_lock(me->itsMutex);
+
+switch (me->currentState) {
+
+case ON_STATE:
+
+/* are the preconditions true: */
+
+/* ie. Error and Operational states? */
+
+if (me->asList[me->currentState]) {
+
+sPtr = me->asList[me->currentState]->andStates[ERRORSTATUS_ANDSTATE];
+if (sPtr) {
+
+is_inPtr = sPtr->aSet.is_inHandler;
+
+if (is_inPtr)
+
+precond1 = is_inPtr(sPtr, ERROR_STATE);
+};
+sPtr = me->asList[me->currentState]->andStates[MODE_ANDSTATE];
+if (sPtr) {
+is_inPtr = sPtr->aSet.is_inHandler;
+if (is_inPtr)
+precond2 = is_inPtr(sPtr, OPERATIONAL_STATE);
+};
+};
+if (precond1 && precond2) {
+
+newState = EMERGENCY_STATE;
+
+/* exit nested states */
+
+LightController_exit_OnState(me);
+/* transition to OFF state */
+
+Light_setColor(me->itsLight, RED);
+
+Light_setMode(me->itsLight, QUICKLY);
+
+Klaxon_alarmOn(me->itsKlaxon);
+
+/* enter new state */
+LightController_enter_EmergencyState(me, newState);
+me->currentState = newState;
+};
+break;
+
+case OFF_STATE:
+
+case EMERGENCY_STATE:
+
+break;
+};
+Mutex_release(me->itsMutex);
+}
+void LightController_Init(LightController* const me) {
+me->currentState = NULL_STATE;
+me->itsKlaxon = NULL;
+me->itsLight = NULL;
+me->itsMutex = NULL;
+int j;
+HighLevelLightStates st;
+ErrorStateClass* andStatePtr = NULL;
+for (st=NULL_STATE;st<=EMERGENCY_STATE; st++)
+
+me->asList[st] = NULL;
+
+/* create all and-state lists and states */
+
+/* In this case, there is only one, the ON_STATE */
+
+/* which has two nested orthogonal regions */
+
+me->asList[ON_STATE] = AndStateList_Create();
+
+me->asList[ON_STATE]->nAndStates = 2;
+
+andStatePtr = ErrorStateClass_Create();
+
+if (andStatePtr) {
+
+me->asList[ON_STATE]->andStates[ERRORSTATUS_ANDSTATE] = andStatePtr;
+
+andStatePtr->itsLightController = me;
+
+};
+
+andStatePtr = (ErrorStateClass*)ModeStateClass_Create();
+if (andStatePtr) {
+
+me->asList[ON_STATE]->andStates[MODE_ANDSTATE] = andStatePtr;
+
+andStatePtr->itsLightController = me;
+
+};
+
+/* enter initial state */
+
+me->currentState = OFF_STATE;
+
+LightController_enter_OffState(me, OFF_STATE);
+
+/* any nested and-states? */
+
+if (me->asList[me->currentState])
+
+/* enter the default state in each and-state */
+for (j=0; j<me->asList[me->currentState]->nAndStates; j++)
+me->asList[me->currentState]->andStates[j]->aSet.entryAction(me->asList[me­
+>currentState]->andStates[j]);
+}
+void LightController_Cleanup(LightController* const me) {
+cleanUpRelations(me);
+}
+void LightController_enter_OffState(LightController* const me, HighLevelLightStates
+newState) {
+LightController_enterNestedAndStates(me, newState);
+}
+void LightController_enter_OnState(LightController* const me, HighLevelLightStates
+newState) {
+LightController_enterNestedAndStates(me, newState);
+}
+void LightController_enter_EmergencyState(LightController* const me, HighLevelLightStates newState) {
+LightController_enterNestedAndStates(me, newState);
+}
+void LightController_exit_OffState(LightController* const me) {
+LightController_exitNestedAndStates(me);
+}
+void LightController_exit_OnState(LightController* const me) {
+LightController_exitNestedAndStates(me);
+}
+void LightController_exit_EmergencyState(LightController* const me) {
+LightController_exitNestedAndStates(me);
+}
+void LightController_enterNestedAndStates(LightController* const me, HighLevelLightStates next) {
+ErrorStateClass* sPtr;
+ActionPtr0 aPtr;
+int j;
+if (me->asList[next]) {
+
+/* and-states to enter? */
+
+for (j=0; j<me->asList[next]->nAndStates; j++ ) {
+
+sPtr = me->asList[next]->andStates[j];
+if (sPtr) {
+
+aPtr = sPtr->aSet.entryAction;
+
+if (aPtr)
+
+aPtr(sPtr);
+
+sPtr->currentState = sPtr->defaultState;
+
+};
+
+};
+};
+}
+void LightController_exitNestedAndStates(LightController* const me) {
+ErrorStateClass* sPtr;
+ActionPtr0 aPtr;
+int j;
+if (me->asList[me->currentState]) { /* any nested states to exit? */
+for (j=0; j<me->asList[me->currentState]->nAndStates; j++ ) { 
+
+sPtr = me->asList[me->currentState]->andStates[j];
+
+if (sPtr) {
+
+aPtr = sPtr->aSet.exitAction;
+
+if (aPtr)
+
+aPtr(sPtr);
+
+sPtr->currentState = NULL_ERROR_STATE;
+
+}; // if sPtr
+
+}; // for
+}; // if asList
+}
+struct Klaxon* LightController_getItsKlaxon(const LightController* const me) {
+return (struct Klaxon*)me->itsKlaxon;
+}
+void LightController_setItsKlaxon(LightController* const me, struct Klaxon* p_Klaxon) {
+me->itsKlaxon = p_Klaxon;
+}
+struct Light* LightController_getItsLight(const LightController* const me) {
+return (struct Light*)me->itsLight;
+}
+void LightController_setItsLight(LightController* const me, struct Light* p_Light) {
+me->itsLight = p_Light;
+}
+struct Mutex* LightController_getItsMutex(const LightController* const me) {
+return (struct Mutex*)me->itsMutex;
+}
+void LightController_setItsMutex(LightController* const me, struct Mutex* p_Mutex) {
+me->itsMutex = p_Mutex;
+}
+LightController * LightController_Create(void) {
+LightController* me = (LightController *)
+malloc(sizeof(LightController));
+if(me!=NULL)
+LightController_Init(me);
+return me;
+}
+void LightController_Destroy(LightController* const me) {
+if(me!=NULL)
+LightController_Cleanup(me);
+free(me);
+}
+static void cleanUpRelations(LightController* const me) {
+
+if(me->itsKlaxon != NULL)
+
+me->itsKlaxon = NULL;
+
+if(me->itsLight != NULL)
+
+me->itsLight = NULL;
+
+if(me->itsMutex != NULL)
+
+me->itsMutex = NULL;
+
+}
+
+Code Listing 5-30: LightController.c
+The AndStateList class provides a level of indirection to a ConcreteAndState class that
+implements the state machine for all its nested states. It primarily provides an array of pointers
+to ConcreteAndState classes. Its code appears in Code Listing 5-31 and Code Listing 5-32.
+#ifndef AndStateList_H
+
+#define AndStateList_H
+
+#include "LightPkg.h"
+struct ErrorStateClass;
+typedef struct AndStateList AndStateList;
+struct AndStateList {
+
+struct ErrorStateClass* andStates[MAX_ANDSTATES];
+
+int nAndStates;
+
+};
+void AndStateList_Init(AndStateList* const me);
+
+void AndStateList_Cleanup(AndStateList* const me);
+
+AndStateList * AndStateList_Create(void);
+
+void AndStateList_Destroy(AndStateList* const me);
+
+#endif
+Code Listing 5-31: AndStateList.h
+#include "AndStateList.h"
+
+#include "ErrorStateClass.h"
+
+void AndStateList_Init(AndStateList* const me) {
+
+me->nAndStates = 0;
+
+int j;
+
+for (j=0; j<MAX_ANDSTATES; j++)
+
+me->andStates[j] = NULL;
+
+}
+
+void AndStateList_Cleanup(AndStateList* const me) {
+
+}
+
+AndStateList * AndStateList_Create(void) {
+AndStateList* me = (AndStateList *)
+
+malloc(sizeof(AndStateList));
+
+if(me!=NULL)
+
+AndStateList_Init(me);
+
+return me;
+
+}
+
+void AndStateList_Destroy(AndStateList* const me) {
+
+if(me!=NULL)
+
+AndStateList_Cleanup(me);
+
+free(me);
+
+}
+
+Code Listing 5-32: AndStateList.c
+Similarly, the StateActionSet is a collection of function pointers, one per event handler plus
+a couple of the entry and exit actions and the is_in() function (which identifies if the state
+class is in the specified state). The reason I made it a class is to provide the initialization
+behavior (setting all the pointers to NULL).
+#ifndef StateActionSet_H
+
+#define StateActionSet_H
+
+#include "LightPkg.h"
+typedef struct StateActionSet StateActionSet;
+struct StateActionSet {
+
+ActionPtr0 entryAction;
+
+ActionPtr0 evAbortHandler;
+
+ActionPtr0 evDisableHandler;
+
+ActionPtr0 evEnableHandler;
+
+ActionPtr0 evErrorHandler;
+
+ActionPtr0 evOkHandler;
+
+ActionPtr0 evRunHandler;
+
+ActionPtr0 evShutDownHandler;
+
+ActionPtr0 evWarningHandler;
+
+ActionPtr0 exitAction;
+
+ActionPtr1 is_inHandler;
+
+};
+void StateActionSet_Init(StateActionSet* const me);
+
+void StateActionSet_Cleanup(StateActionSet* const me);
+
+StateActionSet * StateActionSet_Create(void);
+
+void StateActionSet_Destroy(StateActionSet* const me);
+
+#endif
+Code Listing 33: StateActionSet.h
+#include "StateActionSet.h"
+void StateActionSet_Init(StateActionSet* const me) {
+me->entryAction = NULL;
+me->evAbortHandler = NULL;
+me->evDisableHandler = NULL;
+me->evEnableHandler = NULL;
+me->evErrorHandler = NULL;
+me->evOkHandler = NULL;
+me->evRunHandler = NULL;
+me->evShutDownHandler = NULL;
+me->evWarningHandler = NULL;
+me->exitAction = NULL;
+me->is_inHandler = NULL;
+}
+void StateActionSet_Cleanup(StateActionSet* const me) {
+
+}
+
+StateActionSet * StateActionSet_Create(void) {
+
+StateActionSet* me = (StateActionSet *)
+
+malloc(sizeof(StateActionSet));
+
+if(me!=NULL)
+
+StateActionSet_Init(me);
+
+return me;
+
+}
+
+void StateActionSet_Destroy(StateActionSet* const me) {
+
+if(me!=NULL)
+
+StateActionSet_Cleanup(me);
+
+free(me);
+
+}
+
+Code Listing 34: StateActionSet.c
+The last four code lists are for the header and implementation files of the ErrorStateClass
+and ModeStateClass, which each implement one of the orthogonal regions of the composite
+state On. Note that the aSet attribute variable is in the same position for both these classes,
+meaning that we can invoke them using a cast pointer without getting into trouble – that is, if
+we have a pointer to an ErrorStateClass struct, in reality it might be a pointer to a
+ModeStateClass but it still works because the aSet that holds the function pointers to the
+functions to invoke is in the same position offset in both classes.
+#ifndef ErrorStateClass_H
+
+#define ErrorStateClass_H
+
+#include "LightPkg.h"
+
+#include "StateActionSet.h"
+
+struct LightController;
+typedef struct ErrorStateClass ErrorStateClass;
+struct ErrorStateClass {
+
+struct StateActionSet aSet;
+
+ErrorStatesType currentState;
+
+ErrorStatesType defaultState;
+
+struct LightController* itsLightController;
+
+};
+void ErrorStateClass_Init(ErrorStateClass* const me);
+
+void ErrorStateClass_Cleanup(ErrorStateClass* const me);
+
+/* Operations */
+
+void ErrorStateClass_entryAction(ErrorStateClass* const me);
+
+int ErrorStateClass_evAbort(ErrorStateClass* const me);
+
+int ErrorStateClass_evError(ErrorStateClass* const me);
+
+int ErrorStateClass_evOk(ErrorStateClass* const me);
+
+int ErrorStateClass_evWarning(ErrorStateClass* const me);
+
+void ErrorStateClass_exitAction(ErrorStateClass* const me);
+
+int ErrorStateClass_is_in(ErrorStateClass* const me, ErrorStatesType s);
+
+struct LightController* ErrorStateClass_getItsLightController(const ErrorStateClass*
+const me);
+void ErrorStateClass_setItsLightController(ErrorStateClass* const me, struct LightController* p_LightController);
+ErrorStateClass * ErrorStateClass_Create(void);
+void ErrorStateClass_Destroy(ErrorStateClass* const me);
+
+#endif
+
+Code Listing 5-35: ErrorStateClass.h
+#include "ErrorStateClass.h"
+
+#include "LightController.h"
+
+static void cleanUpRelations(ErrorStateClass* const me);
+void ErrorStateClass_Init(ErrorStateClass* const me) {
+
+me->currentState = NULL_ERROR_STATE;
+
+me->defaultState = ERROR_STATE;
+
+StateActionSet_Init(&(me->aSet));
+
+me->itsLightController = NULL;
+
+/*
+
+set up the aSet function pointers
+
+remember that the initializer for the StateActionSet
+
+sets all pointers to NULL as the default
+
+Note: In this implementation, pointers are only set to non-NULL
+
+for actual handlers (except for entry() and exit()). The caller
+
+can tell if the event is handled by checking if the pointer is NULL.
+
+The higher level On state handles events reset and evDisable.
+
+*/
+me->aSet.evOkHandler = (ActionPtr0) ErrorStateClass_evOk;
+me->aSet.evWarningHandler = (ActionPtr0) ErrorStateClass_evWarning;
+me->aSet.evErrorHandler = (ActionPtr0) ErrorStateClass_evError;
+me->aSet.evAbortHandler = (ActionPtr0) ErrorStateClass_evAbort;
+me->aSet.entryAction = (ActionPtr0) ErrorStateClass_entryAction;
+me->aSet.exitAction = (ActionPtr0) ErrorStateClass_exitAction;
+me->aSet.is_inHandler = (ActionPtr1) ErrorStateClass_is_in
+}
+void ErrorStateClass_Cleanup(ErrorStateClass* const me) {
+cleanUpRelations(me);
+}
+void ErrorStateClass_entryAction(ErrorStateClass* const me) {
+}
+int ErrorStateClass_evAbort(ErrorStateClass* const me) {
+switch(me->currentState) {
+
+case OK_STATE:
+
+case WARNING_STATE:
+
+case ERROR_STATE:
+
+case NULL_ERROR_STATE:
+break;
+};
+return 1;
+}
+int ErrorStateClass_evError(ErrorStateClass* const me) {
+switch(me->currentState) {
+case OK_STATE:
+Light_setColor(me->itsLightController->itsLight, RED);
+me->currentState = ERROR_STATE;
+break;
+case WARNING_STATE:
+Light_setColor(me->itsLightController->itsLight, RED);
+me->currentState = ERROR_STATE;
+break;
+case ERROR_STATE:
+
+case NULL_ERROR_STATE:
+
+break;
+
+};
+return 1;
+}
+int ErrorStateClass_evOk(ErrorStateClass* const me) {
+switch(me->currentState) {
+
+Light_setColor(me->itsLightController->itsLight, GREEN);
+
+me->currentState = OK_STATE;
+
+break;
+
+case ERROR_STATE:
+Light_setColor(me->itsLightController->itsLight, GREEN);
+me->currentState = OK_STATE;
+break;
+me->aSet.evOkHandler = (ActionPtr0) ErrorStateClass_evOk;
+me->aSet.evWarningHandler = (ActionPtr0) ErrorStateClass_evWarning;
+me->aSet.evErrorHandler = (ActionPtr0) ErrorStateClass_evError;
+me->aSet.evAbortHandler = (ActionPtr0) ErrorStateClass_evAbort;
+me->aSet.entryAction = (ActionPtr0) ErrorStateClass_entryAction;
+me->aSet.exitAction = (ActionPtr0) ErrorStateClass_exitAction;
+me->aSet.is_inHandler = (ActionPtr1) ErrorStateClass_is_in
+}
+void ErrorStateClass_Cleanup(ErrorStateClass* const me) {
+cleanUpRelations(me);
+}
+void ErrorStateClass_entryAction(ErrorStateClass* const me) {
+}
+int ErrorStateClass_evAbort(ErrorStateClass* const me) {
+switch(me->currentState) {
+
+case OK_STATE:
+
+case WARNING_STATE:
+
+case ERROR_STATE:
+
+case NULL_ERROR_STATE:
+break;
+};
+return 1;
+}
+int ErrorStateClass_evError(ErrorStateClass* const me) {
+switch(me->currentState) {
+case OK_STATE:
+Light_setColor(me->itsLightController->itsLight, RED);
+me->currentState = ERROR_STATE;
+break;
+case WARNING_STATE:
+Light_setColor(me->itsLightController->itsLight, RED);
+me->currentState = ERROR_STATE;
+break;
+case ERROR_STATE:
+
+case NULL_ERROR_STATE:
+
+break;
+
+};
+return 1;
+}
+int ErrorStateClass_evOk(ErrorStateClass* const me) {
+switch(me->currentState) {
+
+Light_setColor(me->itsLightController->itsLight, GREEN);
+
+me->currentState = OK_STATE;
+
+break;
+
+case ERROR_STATE:
+Light_setColor(me->itsLightController->itsLight, GREEN);
+me->currentState = OK_STATE;
+break;
+ErrorStateClass_Cleanup(me);
+
+free(me);
+
+}
+
+static void cleanUpRelations(ErrorStateClass* const me) {
+
+if(me->itsLightController != NULL)
+
+me->itsLightController = NULL;
+
+}
+Code Listing 5-36: ErrorState.c
+#ifndef ModeStateClass_H
+
+#define ModeStateClass_H
+
+#include "LightPkg.h"
+
+#include "StateActionSet.h"
+
+struct LightController;
+
+typedef struct ModeStateClass ModeStateClass;
+struct ModeStateClass {
+
+struct StateActionSet aSet;
+
+ModeStatesType currentState;
+
+ModeStatesType defaultState;
+
+struct LightController* itsLightController;
+
+};
+void ModeStateClass_Init(ModeStateClass* const me);
+void ModeStateClass_Cleanup(ModeStateClass* const me);
+/* Operations */
+
+void ModeStateClass_entryAction(ModeStateClass* const me);
+
+int ModeStateClass_evAbort(ModeStateClass* const me);
+
+int ModeStateClass_evRun(ModeStateClass* const me);
+
+int ModeStateClass_evShutDown(ModeStateClass* const me);
+
+void ModeStateClass_exitAction(ModeStateClass* const me);
+
+int ModeStateClass_is_in(ModeStateClass* const me, ModeStatesType s);
+
+struct LightController* ModeStateClass_getItsLightController(const ModeStateClass*
+const me);
+void ModeStateClass_setItsLightController(ModeStateClass* const me, struct LightController* p_LightController);
+ModeStateClass * ModeStateClass_Create(void);
+void ModeStateClass_Destroy(ModeStateClass* const me);
+
+#endif
+
+Code Listing 5-37: ModeStateClass.h
+#include "ModeStateClass.h"
+
+#include "LightController.h"
+
+static void cleanUpRelations(ModeStateClass* const me);
+void ModeStateClass_Init(ModeStateClass* const me) {
+me->currentState = NULL_MODE_STATE;
+
+me->defaultState = STARTINGUP_STATE;
+
+{
+
+StateActionSet_Init(&(me->aSet));
+
+}
+
+me->itsLightController = NULL;
+
+/*
+
+set up the aSet function pointers
+
+remember that the initializer for the StateActionSet
+
+sets all pointers to NULL as the default
+
+Note: In this implementation, pointers are only set to non-NULL
+
+for actual handlers (except for entry() and exit()). The caller
+
+can tell if the event is handled by checking if the pointer is NULL.
+
+The higher level On state handles events reset and evDisable.
+*/
+me->aSet.evRunHandler = (ActionPtr0) ModeStateClass_evRun;
+me->aSet.evShutDownHandler = (ActionPtr0) ModeStateClass_evShutDown;
+me->aSet.evAbortHandler = (ActionPtr0) ModeStateClass_evAbort;
+me->aSet.entryAction = (ActionPtr0) ModeStateClass_entryAction;
+me->aSet.exitAction = (ActionPtr0) ModeStateClass_exitAction;
+me->aSet.is_inHandler = (ActionPtr1) ModeStateClass_is_in;
+}
+void ModeStateClass_Cleanup(ModeStateClass* const me) {
+cleanUpRelations(me);
+}
+void ModeStateClass_entryAction(ModeStateClass* const me) {
+}
+int ModeStateClass_evAbort(ModeStateClass* const me) {
+return 1;
+}
+int ModeStateClass_evRun(ModeStateClass* const me) {
+switch (me->currentState) {
+case STARTINGUP_STATE:
+Light_setMode(me->itsLightController->itsLight, STEADY);
+me->currentState = OPERATIONAL_STATE;
+break;
+case SHUTTINGDOWN_STATE:
+Light_setMode(me->itsLightController->itsLight, QUICKLY);
+me->currentState = STARTINGUP_STATE;
+break;
+case OPERATIONAL_STATE:
+case NULL_MODE_STATE:
+break;
+};
+return 1;
+}
+int ModeStateClass_evShutDown(ModeStateClass* const me) {
+switch (me->currentState) {
+case OPERATIONAL_STATE:
+
+Light_setMode(me->itsLightController->itsLight, SLOWLY);
+
+me->currentState = SHUTTINGDOWN_STATE;
+
+break;
+
+case STARTINGUP_STATE:
+
+Light_setMode(me->itsLightController->itsLight, SLOWLY);
+
+me->currentState = SHUTTINGDOWN_STATE;
+
+break;
+
+case SHUTTINGDOWN_STATE:
+
+break;
+
+case NULL_MODE_STATE:
+
+break;
+
+};
+
+return 1;
+
+}
+
+void ModeStateClass_exitAction(ModeStateClass* const me) {
+
+}
+
+int ModeStateClass_is_in(ModeStateClass* const me, ModeStatesType s) {
+
+return s == me->currentState;
+
+}
+
+struct LightController* ModeStateClass_getItsLightController(const ModeStateClass*
+const me) {
+return (struct LightController*)me->itsLightController;
+}
+void ModeStateClass_setItsLightController(ModeStateClass* const me, struct LightController* p_LightController) {
+me->itsLightController = p_LightController;
+}
+ModeStateClass * ModeStateClass_Create(void) {
+
+ModeStateClass* me = (ModeStateClass *)
+
+malloc(sizeof(ModeStateClass));
+
+if(me!=NULL)
+
+ModeStateClass_Init(me);
+
+return me;
+
+}
+
+void ModeStateClass_Destroy(ModeStateClass* const me) {
+
+if(me!=NULL)
+
+ModeStateClass_Cleanup(me);
+
+free(me);
+
+}
+static void cleanUpRelations(ModeStateClass* const me) {
+
+if(me->itsLightController != NULL)
+
+me->itsLightController = NULL;
+
+}
+Code Listing 5-38: ModeStateClass.c
+Figure 5-25 shows a sample run of the model shown in Figure 5-24 in which the
+LightControllerClient sends the events evEnable, evError, evRun, and then
+evAbort. Note the use of the is_in() function to make sure that the preconditions of the
+join are met before the event is taken.

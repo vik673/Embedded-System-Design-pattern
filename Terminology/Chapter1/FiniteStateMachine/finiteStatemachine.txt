@@ -1,0 +1,106 @@
+A finite state machine (FSM) is a machine specified by a finite set of conditions of existence
+(called “states”) and a likewise finite set of transitions among the states triggered by events.
+An FSM differs from an activity diagram or flow chart in that the transitions are triggered
+by events (primarily) rather than being triggered when the work done in the previous state is
+complete. Statecharts are primarily used to model the behavior of reactive elements, such
+as classes and use cases, that wait in a state until an event of interest occurs. At that point,
+the event is processed, actions are performed, and the element transitions to a new state.
+Actions, such as the execution of a primitive C language statement or the invocation of an
+operation, may be specified to be executed when a state is entered or exited, or when a
+transition is taken. The order of execution of actions is exit actions of the predecessor
+state, followed by the transition actions, followed by the entry actions of the subsequent state.
+
+finite state machine includes:-
+• Nested states for specifying hierarchical state membership
+• AND-states for specifying logical independence and concurrency
+• Pseudostates for annotating commonly-needed specific dynamic semantics
+
+
+Transitions are arrowed lines coming from a predecessor state and terminating on a subsequent
+state. Transitions usually have the optional event signature and action list. The basic form of an
+event signature is
+event-name ‘(‘parameter-list‘)’ ‘[‘guard’]’ ‘/’ action-list
+
+The UML defines four distinct
+kinds of events that may be passed or handled:
+•	 SignalEvent – an asynchronously sent event
+•	 CallEvent – a synchronously sent event
+•	 TimeEvent – an event due to the passage of an interval of time (most common) or arrival of
+an epoch
+•	 ChangeEvent – a change in a state variable or attribute of the Classifier
+
+
+Asynchronous event transfer
+                            is always implemented via queuing of the event until the element is
+ready to process it. That is, the sender “sends and forgets” the event and goes on about its
+business, ignorant of whether or not the event has been processed.
+
+Synchronous event transfer
+                            executes the state processing of the event in the thread of the sender, with the sender blocked from
+continuing until that state processing is complete. This is commonly implemented by invoking a 
+class method called an event handler that executes the relevant part of the state machine, returning
+control to the sender only when the event processing is complete. Such “triggered operations”
+don’t have a standard method body; their method body is the action list on the state machine.
+
+Events may have parameters – typed values accepted by the state machine which may then be
+used in the guard and actions in the processing of the event. The statechart specifies the formal
+parameter list, while the object that sends the event must provide the necessary actual
+parameters to bind to the formal parameter list. We will use a slightly peculiar syntax for
+passing events. We will create a struct named params that contains the named parameters for
+every event that carries data. If an event e has two parameters, x and y, to use these in a guard,
+for example, you would dereference the params struct to access their value. So a transition
+triggered by event e with a guard that specified that x must be greater than 0 and y must be less
+than or equal to 10 for the transition to be taken would look like:
+e[params->x>0 && params->y<=10]
+
+Time events are almost always relative to the entry to a state. A common way to name such an
+event (and what we will use here) is “tm(interval),” where “interval” is the time interval
+parameter for the timeout event. If the timeout occurs before another specified event occurs,
+then the transition triggered by the timeout event will be taken; if another event is sent to the
+object prior to the triggering of the timeout, then the time is discarded; if the state is reentered,
+the timeout interval is started over from the beginning.
+
+A guard is a Boolean expression contained within square brackets that follows the event trigger.
+The guard should return only TRUE or FALSE and not have side effects. If a guard is specified
+for a transition and the event trigger (if any) occurs, then the transition will be taken if and only
+if the guard evaluates to TRUE. If the guard evaluates to FALSE, then the triggering event is
+quietly discarded and no actions are executed.
+
+The action list for the transition is executed if and only if the transition is taken; that is, the
+named event is received by the object while it is in the predecessor state and the guard, if any,
+evaluates to TRUE. The entire set of exit actions–transition actions–entry actions is executed in
+that order and is executed using run-to-completion semantics.
+
+•	 Add a state variable (e.g., activeState)
+•	 For each event to the “class,” add an event receptor function and pass in any data that it
+needs as parameters
+•	 Create an event dispatcher function, called by each event receptor; this processes the
+incoming event
+
+switch(activeState) {
+    /* for each state */
+    case state1:
+    /* for each event */
+
+    Switch (eventID) {
+        event1:
+            /* check each guard */
+            If (guard1()) {
+            action1();
+            else if (guard2()) {
+            action2();
+            };
+        break;
+        event2:
+            if (guard3()) {
+            action3();
+            } else if (guard4()) {
+            action5();
+            };
+           break;
+           };
+        break;
+        case state2:
+        // etc
+}
+}

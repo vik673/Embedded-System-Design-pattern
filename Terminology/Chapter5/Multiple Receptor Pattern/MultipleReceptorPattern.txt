@@ -1,0 +1,436 @@
+4 Multiple Event Receptor Pattern
+Multiple event receptor finite state machines (MERSMs) are generally only used for synchronous state machines because the client is often aware of the set of events that it might want to
+send to the server state machine. In this pattern, there is a single event receptor for each event
+sent from the client.
+5.4.1 Abstract
+The MERSM approach for state machine implementation is probably the most common
+implementation pattern for synchronous state machines. It is usually the simplest because each
+event receptor concerns itself only with the handling of a single event and the execution of the
+associated actions.
+5.4.2 Problem
+This pattern addresses the problem of providing a simple robust implementation for synchronous state machines.
+5.4.3 Pattern Structure
+The context for the state machine implementation is shown in Figure 5-15. You can see that
+the TokenizerMultiReceptor has an event receptor for each event passed to the state machine
+plus additional functions representing the entry and exit actions of each of the states. In addition,
+the figure explicitly shows the enumerated types used for the state and substates (as mentioned, it
+is also common to simply use integer values). The event type need not be explicitly represented
+because the client implicitly indicates it by invoking the appropriate event receptor.
+5.4.4 Collaboration Roles
+This section describes the roles for this pattern.
+5.4.4.1 Mutex
+The mutex ensures the deterministic run-to-completion semantics of transitions by preventing
+other clients from interrupting the state machine execution of an action sequence. This is
+accomplished by locking the semaphore before the event is processed and releasing it once the
+transition processing is complete.
+5.4.4.2 TMRClient
+This is the client of the state machine. It invokes the event receptors (in this case, those
+functions with the “ev” prefix, such as evDigit and evDot.
+5.4.4.3 TokenizeMultiReceptor
+This element is the owner and implementer of the desired state machine (see Figure 5-12). It
+has two kinds of attributes: those involved with the intent of the state machine (such as result)
+and those involved with the management of the state machine (such as stateID). Of the
+former type, we find:
+•	 result, which holds the current value of the number being parsed
+•	 tensPlace, which is used in computing fractional parts of numbers, as in 0.345 of the
+number 10.345
+•	 ch, which holds the current character being processed
+Of the latter type, we see:
+•	 stateID, which stores the current high level state (NULL_STATE, NONUMBER_STATE, or
+GOTNUMBER_STATE)
+•	 subStateID, which stores the current substate (NULL_SSTATE,
+PROCESSINGWHOLEPART_SSTATE, or PROCESSINGFRACTIONALPART_SSTATE)
+These values are defined in the enumerated types TSTATETYPE and TSUBSTATETYPE,
+respectively.
+Functions of this state machine are likewise of two types. The first type is the event receptors.
+These are invoked by the client to “send” the event and pass data as needed. These include:
+•	 evDigit(c: char) sends the evDigit event and passes the character of the digit as a
+parameter
+•	 evDot sends the dot event, indicating that the decimal point was the next character in the
+string
+•	 evEndOfString indicates that there are no more characters in the string
+•	 evWhiteSpace indicates that whitespace, such as a blank or tab character, was found
+The other operations are for the entry and exit actions of the states. Note that the transitions
+actions are all embedded within the event receptors since they only occur once, but there are
+often many paths into and out of a state so we explicitly create entry and exit functions for each
+state. These are not called directly by the clients.
+5.4.4.4 TSTATE
+TSTATE is an enumerated type of the high level states.
+5.4.4.5 TSUBSTATE
+TSUBSTATE is an enumerated type of the nested states. In this case, there are only two levels.
+5.4.5 Consequences
+This pattern simplifies the implementation by dividing up the state logic into a set of event
+receptors. Each of which provides a switch-case statement to implement the appropriate
+behavior dependent on states. The pattern is almost exclusively applied to synchronous state
+machines because the event queues do not, generally, parse the internal content of the data they
+manage, and so do not know which event receptor to call, if there is more than one.
+5.4.6 Implementation Strategies
+The primary variation points for the implementation of this pattern are to use If-then statements
+instead of switch-case statements and to use raw integers for state variables rather than
+enumerated types.
+5.4.7 Related Patterns
+This pattern uses the Guarded Call Pattern (see Chapter 4) to ensure deterministic run-tocompletion of transitions. It is also possible to use the Critical Region Pattern to simply disable
+task switching or even disable interrupts instead. The single event receptor provides a similar
+approach that can be easily adapted for asynchronous event processing.
+5.4.8 Example
+The implementation of the sample state machine with this pattern is shown the following code lists.
+Code Listing 5-11 showsthe enumerated types and the definition of the digit() function. The next
+two code listings provide the header and implementation files for the TokenizeMultiReceptor
+class. Note that this class defines functions for entry and exit of each state even if empty. You may
+choose to omit the empty ones if desired. The init() function operates as a constructor and puts
+the object into its starting state and invokes the relevant entry action.
+typedef enum TSTATETYPE {
+
+NULL_STATE,
+
+NONUMBER_STATE,
+
+GOTNUMBER_STATE
+
+} TSTATETYPE;
+typedef enum TSUBSTATETYPE {
+
+NULL_SSTATE,
+
+PROCESSINGWHOLEPART_SSTATE,
+
+PROCESSINGFRACTIONALPART_SSTATE
+
+} TSUBSTATETYPE;
+int digit(char c) {
+
+return c-'0';
+
+}
+
+Code Listing 5-11: Basic types used by TokenizeMultiReceptor
+#include "TokenizeMultiReceptor.h"
+
+#include <stdio.h>
+
+struct Mutex;
+typedef struct TokenizerMultiReceptor TokenizerMultiReceptor;
+struct TokenizerMultiReceptor {
+
+char ch;
+
+double result;
+
+TSTATETYPE stateID;
+
+TSUBSTATETYPE subStateID;
+
+double tensPlace;
+
+struct Mutex* itsMutex;
+
+};
+/* Constructors and destructors:*/
+
+void TokenizerMultiReceptor_Cleanup(TokenizerMultiReceptor* const me);
+
+/* Operations */
+
+void TokenizerMultiReceptor_evDigit(TokenizerMultiReceptor* const me, char c);
+void TokenizerMultiReceptor_evDot(TokenizerMultiReceptor* const me);
+void TokenizerMultiReceptor_evEndOfString(TokenizerMultiReceptor* const me);
+void TokenizerMultiReceptor_evWhiteSpace(TokenizerMultiReceptor* const me);
+void
+
+TokenizerMultiReceptor_enter_GotNumber(TokenizerMultiReceptor* const me);
+
+void
+
+TokenizerMultiReceptor_enter_NoNumber(TokenizerMultiReceptor* const me);
+
+void
+
+TokenizerMultiReceptor_enter_ProcessingFractionalPart(TokenizerMultiReceptor* const
+
+me);
+
+void
+
+TokenizerMultiReceptor_enter_ProcessingWholePart(TokenizerMultiReceptor* const me);
+
+void
+
+TokenizerMultiReceptor_exit_GotNumber(TokenizerMultiReceptor* const me);
+
+void
+
+TokenizerMultiReceptor_exit_NoNumber(TokenizerMultiReceptor* const me);
+ 
+ void
+
+TokenizerMultiReceptor_exit_ProcessingFractionalPart(TokenizerMultiReceptor* const me);
+
+void
+
+TokenizerMultiReceptor_exit_ProcessingWholePart(TokenizerMultiReceptor* const me);
+
+TokenizerMultiReceptor * TokenizerMultiReceptor_Create(void);
+ void TokenizerMultiReceptor_Destroy(TokenizerMultiReceptor* const me);
+void TokenizerMultiReceptor_Init(TokenizerMultiReceptor* const me);
+struct Mutex* TokenizerMultiReceptor_getItsMutex(const TokenizerMultiReceptor* const
+me);
+void TokenizerMultiReceptor_setItsMutex(TokenizerMultiReceptor* const me, struct
+Mutex* p_Mutex);
+#endif
+Code Listing 5-12: TokenizeMultiReceptor.h
+#include "TokenizerMultiReceptor.h"
+
+#include "Mutex.h"
+
+static void cleanUpRelations(TokenizerMultiReceptor* const me);
+void TokenizerMultiReceptor_Cleanup(TokenizerMultiReceptor* const me) {
+
+cleanUpRelations(me);
+
+}
+
+/*
+
+process the evDigit event, passing the character
+
+c as a parameter
+
+*/
+void TokenizerMultiReceptor_evDigit(TokenizerMultiReceptor* const me, char c) {
+
+Mutex_lock(me->itsMutex);
+
+switch (me->stateID) {
+
+case NONUMBER_STATE:
+
+/* transition to GotNumber state, default substate */
+
+TokenizerMultiReceptor_exit_NoNumber(me);
+
+me->ch = c;
+
+TokenizerMultiReceptor_enter_GotNumber(me);
+
+me->stateID = GOTNUMBER_STATE;
+
+TokenizerMultiReceptor_enter_ProcessingWholePart(me);
+
+me->subStateID = PROCESSINGWHOLEPART_SSTATE;
+
+printf("Current value of result: %g\n", me->result);
+
+break;
+
+case GOTNUMBER_STATE:
+
+switch (me->subStateID) {
+
+case PROCESSINGWHOLEPART_SSTATE:
+
+TokenizerMultiReceptor_exit_ProcessingWholePart(me);
+
+me->ch = c;
+
+TokenizerMultiReceptor_enter_ProcessingWholePart(me);
+printf("Current value of result: %g\n", me->result);
+break;
+case PROCESSINGFRACTIONALPART_SSTATE:
+TokenizerMultiReceptor_exit_ProcessingFractionalPart(me);
+me->ch = c;
+me->result += digit(me->ch) / me->tensPlace;
+me->tensPlace *= 10.0;
+TokenizerMultiReceptor_enter_ProcessingFractionalPart(me);
+printf("Current value of result: %g\n", me->result);
+break;
+};
+};
+Mutex_release(me->itsMutex);
+}
+/*
+process the evDot
+*/
+void TokenizerMultiReceptor_evDot(TokenizerMultiReceptor* const me) {
+Mutex_lock(me->itsMutex);
+
+me->ch = '.';
+
+switch (me->stateID) {
+
+case NONUMBER_STATE:
+
+/* transition to GotNumber state, default substate */
+
+TokenizerMultiReceptor_exit_NoNumber(me);
+
+TokenizerMultiReceptor_enter_GotNumber(me);
+
+me->stateID = GOTNUMBER_STATE;
+
+TokenizerMultiReceptor_enter_ProcessingFractionalPart(me);
+
+me->subStateID = PROCESSINGFRACTIONALPART_SSTATE;
+
+break;
+
+case GOTNUMBER_STATE:
+
+switch (me->subStateID) {
+
+case PROCESSINGWHOLEPART_SSTATE:
+
+TokenizerMultiReceptor_exit_ProcessingWholePart(me);
+TokenizerMultiReceptor_enter_ProcessingFractionalPart(me);
+me->subStateID = PROCESSINGFRACTIONALPART_SSTATE;
+break;
+};
+};
+Mutex_release(me->itsMutex);
+}
+/*
+process the evEndOfString event
+*/
+void TokenizerMultiReceptor_evEndOfString(TokenizerMultiReceptor* const me) {
+Mutex_lock(me->itsMutex);
+
+switch (me->stateID) {
+
+case GOTNUMBER_STATE:
+
+switch (me->subStateID) {
+
+case PROCESSINGWHOLEPART_SSTATE:
+
+TokenizerMultiReceptor_exit_ProcessingWholePart(me);
+
+break;
+
+case PROCESSINGFRACTIONALPART_SSTATE:
+
+TokenizerMultiReceptor_exit_ProcessingFractionalPart(me);
+
+break;
+
+};
+
+TokenizerMultiReceptor_exit_GotNumber(me);
+
+printf("Number: %g\n", me->result);
+
+TokenizerMultiReceptor_enter_NoNumber(me);
+
+me->stateID = NONUMBER_STATE;
+
+break;
+
+};
+Mutex_release(me->itsMutex);
+}
+/*
+process the evWhiteSpace event
+*/
+void TokenizerMultiReceptor_evWhiteSpace(TokenizerMultiReceptor* const me) {
+Mutex_lock(me->itsMutex);
+
+switch (me->stateID) {
+
+case GOTNUMBER_STATE:
+
+switch (me->subStateID) {
+
+case PROCESSINGWHOLEPART_SSTATE:
+
+TokenizerMultiReceptor_exit_ProcessingWholePart(me);
+
+break;
+
+case PROCESSINGFRACTIONALPART_SSTATE:
+
+TokenizerMultiReceptor_exit_ProcessingFractionalPart(me);
+break;
+
+};
+
+TokenizerMultiReceptor_exit_GotNumber(me);
+
+printf("Number: %g\n", me->result);
+
+TokenizerMultiReceptor_enter_NoNumber(me);
+
+me->stateID = NONUMBER_STATE;
+
+break;
+
+};
+Mutex_release(me->itsMutex);
+}
+/*
+entry and exit actions for each state
+*/
+void
+TokenizerMultiReceptor_enter_GotNumber(TokenizerMultiReceptor* const me) {
+me->tensPlace = 10.0;
+}
+void
+TokenizerMultiReceptor_enter_NoNumber(TokenizerMultiReceptor* const me) {
+me->result = 0.0;
+}
+
+void
+TokenizerMultiReceptor_enter_ProcessingFractionalPart(TokenizerMultiReceptor* const
+me) {
+}
+void
+TokenizerMultiReceptor_enter_ProcessingWholePart(TokenizerMultiReceptor* const me) {
+me->result = me->result*10 + digit(me->ch);
+}
+void
+TokenizerMultiReceptor_exit_GotNumber(TokenizerMultiReceptor* const me) {
+me->subStateID = NULL_SSTATE;
+}
+void TokenizerMultiReceptor_exit_NoNumber(TokenizerMultiReceptor* const me) {
+}
+void
+TokenizerMultiReceptor_exit_ProcessingFractionalPart(TokenizerMultiReceptor* const
+me) {
+}
+void
+TokenizerMultiReceptor_exit_ProcessingWholePart(TokenizerMultiReceptor* const me) {
+}
+/* helper functions */
+TokenizerMultiReceptor * TokenizerMultiReceptor_Create(void) {
+TokenizerMultiReceptor* me = (TokenizerMultiReceptor *) malloc(sizeof
+(TokenizerMultiReceptor));
+if(me!=NULL)
+TokenizerMultiReceptor_Init(me);
+return me;
+}
+void TokenizerMultiReceptor_Destroy(TokenizerMultiReceptor* const me) {
+if(me!=NULL)
+TokenizerMultiReceptor_Cleanup(me);
+free(me);
+}
+void TokenizerMultiReceptor_Init(TokenizerMultiReceptor* const me) {
+me->ch = ’x’;
+me->result = 0.0;
+me->tensPlace = 10.0;
+me->itsMutex = NULL;
+/* initialize state variables */
+
+me->stateID = NONUMBER_STATE;
+
+me->subStateID = NULL_SSTATE;
+
+}
+struct Mutex* TokenizerMultiReceptor_getItsMutex(const TokenizerMultiReceptor* const me) {
+return (struct Mutex*)me->itsMutex;
+}
+void TokenizerMultiReceptor_setItsMutex(TokenizerMultiReceptor* const me, struct
+Mutex* p_Mutex) {
+me->itsMutex = p_Mutex;
+}
+static void cleanUpRelations(TokenizerMultiReceptor* const me) {
+if(me->itsMutex != NULL)
+me->itsMutex = NULL;
+}
+Code Listing 5-13:TokenizeMultiReceptor.c

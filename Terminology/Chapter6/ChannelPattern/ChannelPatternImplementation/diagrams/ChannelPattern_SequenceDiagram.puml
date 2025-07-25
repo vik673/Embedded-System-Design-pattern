@@ -1,0 +1,212 @@
+@startuml ChannelPattern_SequenceDiagram
+
+!theme plain
+
+title Channel Pattern - EMG Biofeedback Processing Sequence
+
+participant "Main Application" as App
+participant "EMGChannel" as EMG
+participant "Channel" as CH
+participant "EMGSensorDeviceDriver" as Sensor
+participant "ConvertToFrequency" as Freq
+participant "MovingAverageFilter" as Filter
+participant "CalculateColor" as Color
+participant "LightDeviceDriver" as Light
+
+== System Initialization ==
+
+App -> EMG : EMGChannel_Create()
+activate EMG
+
+EMG -> CH : Channel_Create()
+activate CH
+EMG -> Sensor : EMGSensorDeviceDriver_Create()
+activate Sensor
+EMG -> Freq : ConvertToFrequency_Create()
+activate Freq
+EMG -> Filter : MovingAverageFilter_Create()
+activate Filter
+EMG -> Color : CalculateColor_Create()
+activate Color
+EMG -> Light : LightDeviceDriver_Create()
+activate Light
+
+App -> EMG : initialize()
+EMG -> EMG : setupProcessingChain()
+
+' Configure the processing pipeline
+EMG -> CH : setSensorDriver(sensor)
+EMG -> CH : setFirstTransform(frequencyConverter)
+EMG -> Freq : setNextTransform(averageFilter)
+EMG -> Filter : setNextTransform(colorCalculator)
+EMG -> Color : setActuatorDriver(lightDriver)
+EMG -> CH : setActuatorDriver(lightDriver)
+
+' Initialize all components
+EMG -> Sensor : initializeSensor()
+Sensor -> Sensor : calibrate()
+Sensor --> EMG : initialization_success
+
+EMG -> Light : initializeActuator()
+Light -> Light : setupRGBChannels()
+Light --> EMG : initialization_success
+
+' Configure parameters
+App -> EMG : setSensitivity(3)
+EMG -> Sensor : setSensitivity(3)
+
+App -> EMG : setBrightness(0.8)
+EMG -> Light : setBrightness(0.8)
+
+App -> EMG : setFilterWindow(10)
+EMG -> Filter : setWindowSize(10)
+
+EMG --> App : system_ready
+
+== Normal Processing Cycle ==
+
+loop Every Processing Cycle
+
+    App -> EMG : runBiofeedback(1)
+    EMG -> CH : processChannel()
+    
+    ' Step 1: Sensor Data Acquisition
+    CH -> Sensor : startProcessing()
+    Sensor -> Sensor : readSensor()
+    note right of Sensor : Simulate EMG reading:\n- Apply sensitivity gain\n- Filter noise\n- Validate signal
+    
+    Sensor -> Sensor : simulateEMGReading()
+    Sensor -> Sensor : applyAmplification(rawValue)
+    Sensor -> Sensor : filterNoise(amplifiedValue)
+    
+    alt Data Valid
+        Sensor -> Freq : processData(emgVoltage)
+        note right of Freq : Convert voltage to frequency:\n- Store in circular buffer\n- Apply windowing function\n- Perform FFT analysis\n- Find dominant frequency
+        
+        ' Step 2: Frequency Conversion
+        Freq -> Freq : performFFT()
+        Freq -> Freq : applyWindowFunction()
+        Freq -> Freq : findDominantFrequency()
+        
+        Freq -> Filter : processData(dominantFrequency)
+        note right of Filter : Apply moving average:\n- Update circular buffer\n- Calculate running average\n- Smooth frequency variations
+        
+        ' Step 3: Moving Average Filtering
+        Filter -> Filter : updateAverage(frequency)
+        Filter -> Filter : calculateAverage()
+        
+        Filter -> Color : processData(smoothedFrequency)
+        note right of Color : Calculate RGB color:\n- Normalize frequency to 0-1\n- Convert to HSV color space\n- Map to RGB values
+        
+        ' Step 4: Color Calculation
+        Color -> Color : normalizeFrequency(frequency)
+        Color -> Color : frequencyToHue(normalizedFreq)
+        Color -> Color : hsvToRgb(hue, saturation, value)
+        
+        Color -> Light : actuate(colorValue)
+        note right of Light : Update physical light:\n- Extract RGB from color value\n- Apply brightness scaling\n- Validate RGB ranges\n- Update hardware
+        
+        ' Step 5: Light Actuation
+        Light -> Light : validateRGBValues(r, g, b)
+        Light -> Light : updatePhysicalLight()
+        Light -> Light : setRGBValues(r, g, b)
+        
+        Light --> Color : actuation_complete
+        Color --> Filter : processing_complete
+        Filter --> Freq : processing_complete
+        Freq --> Sensor : processing_complete
+        
+    else Data Invalid
+        Sensor -> Sensor : setErrorState(INVALID_DATA)
+        note right of Sensor : Handle invalid data:\n- Set error state\n- Skip processing cycle\n- Maintain previous output
+        
+        Sensor --> CH : error_invalid_data
+    end
+    
+    Sensor --> CH : processing_complete
+    CH --> EMG : cycle_complete
+    EMG --> App : biofeedback_cycle_complete
+
+end
+
+== Real-time Processing Details ==
+
+note over App, Light
+    **EMG Signal Flow:**
+    Raw EMG (0.1-5mV) → Amplified Signal → Frequency Domain (1-100Hz) → 
+    Smoothed Frequency → HSV Color → RGB Light Output
+    
+    **Processing Chain Benefits:**
+    • Modular design allows easy component replacement
+    • Each stage can be independently tested and validated
+    • Parameters can be adjusted at runtime
+    • Error handling is isolated to specific components
+end note
+
+== Configuration Changes During Runtime ==
+
+App -> EMG : setSensitivity(5)
+EMG -> Sensor : setSensitivity(5)
+note right of Sensor : Dynamic reconfiguration:\n- Update amplification gain\n- Maintain processing continuity\n- No interruption to data flow
+
+App -> EMG : setBrightness(0.5)
+EMG -> Light : setBrightness(0.5)
+note right of Light : Brightness adjustment:\n- Scale all RGB values\n- Immediate visual feedback\n- Smooth transition
+
+== Error Handling Scenarios ==
+
+alt Sensor Error
+    CH -> Sensor : startProcessing()
+    Sensor -> Sensor : readSensor()
+    Sensor -> Sensor : Hardware fault detected
+    Sensor -> Sensor : setErrorState(HARDWARE_ERROR)
+    Sensor --> CH : error_hardware_fault
+    CH -> CH : handleSensorError()
+    note right of CH : Error recovery:\n- Log error condition\n- Attempt sensor reset\n- Use last known good value
+    
+else Processing Error
+    Freq -> Freq : performFFT()
+    Freq -> Freq : Buffer overflow detected
+    Freq -> Freq : setErrorState(BUFFER_OVERFLOW)
+    note right of Freq : Buffer management:\n- Reset circular buffer\n- Clear processing state\n- Resume normal operation
+    
+else Actuator Error
+    Light -> Light : updatePhysicalLight()
+    Light -> Light : Hardware communication failure
+    Light -> Light : setErrorState(COMM_ERROR)
+    note right of Light : Actuator fault:\n- Retry communication\n- Use safe default values\n- Report system status
+end
+
+== System Shutdown ==
+
+App -> EMG : shutdown()
+EMG -> CH : stopChannel()
+CH -> Sensor : stopProcessing()
+CH -> Light : disable()
+
+EMG -> Sensor : shutdownSensor()
+Sensor -> Sensor : cleanup resources
+deactivate Sensor
+
+EMG -> Light : shutdownActuator()
+Light -> Light : turn off all channels
+deactivate Light
+
+EMG -> Freq : ConvertToFrequency_Destroy()
+deactivate Freq
+
+EMG -> Filter : MovingAverageFilter_Destroy()
+deactivate Filter
+
+EMG -> Color : CalculateColor_Destroy()
+deactivate Color
+
+EMG -> CH : Channel_Destroy()
+deactivate CH
+
+EMG -> EMG : cleanup all resources
+deactivate EMG
+
+App -> App : application_shutdown_complete
+
+@enduml

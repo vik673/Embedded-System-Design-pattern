@@ -1,0 +1,205 @@
+@startuml StateTablePattern_ClassDiagram
+
+!theme plain
+title State Table Design Pattern - Class Diagram
+
+' Define the color scheme
+skinparam class {
+    BackgroundColor<<main>> LightBlue
+    BackgroundColor<<utility>> LightGreen
+    BackgroundColor<<client>> LightYellow
+    BackgroundColor<<data>> LightCyan
+    BorderColor Black
+    ArrowColor Black
+}
+
+' Enumerations
+enum StateType {
+    STATE_NONUMBER
+    STATE_GOTNUMBER_WHOLE
+    STATE_GOTNUMBER_FRACTIONAL
+    STATE_MAX
+}
+
+enum EventType {
+    EVENT_DIGIT
+    EVENT_DOT
+    EVENT_WHITESPACE
+    EVENT_END_OF_STRING
+    EVENT_MAX
+}
+
+enum ActionType {
+    ACTION_NONE
+    ACTION_START_NUMBER
+    ACTION_ADD_DIGIT_WHOLE
+    ACTION_ADD_DIGIT_FRACTIONAL
+    ACTION_START_FRACTIONAL
+    ACTION_FINISH_NUMBER
+    ACTION_RESET
+    ACTION_MAX
+}
+
+' State Table Entry structure
+class StateTableEntry <<data>> {
+    + nextState: StateType
+    + actionType: ActionType
+    + actionFunc: ActionFunction
+}
+
+' Function pointer type
+class ActionFunction <<utility>> {
+    <<typedef>>
+    void (*ActionFunction)(TokenizerContext*, char)
+}
+
+' Tokenizer Context
+class TokenizerContext <<data>> {
+    + currentState: StateType
+    + currentChar: char
+    + result: double
+    + tensPlace: double
+    + mutex: Mutex*
+    + transitionCount: int
+    + eventCount[EVENT_MAX]: int
+}
+
+' Mutex class for thread safety
+class Mutex <<utility>> {
+    - locked: int
+    - owner_id: int
+    --
+    + Create(): Mutex*
+    + Destroy(me: Mutex*): void
+    + Init(me: Mutex*): void
+    + lock(me: Mutex*): int
+    + release(me: Mutex*): int
+    + isLocked(me: Mutex*): int
+}
+
+' Main State Table Tokenizer class
+class StateTableTokenizer <<main>> {
+    - context: TokenizerContext*
+    - stateTable[STATE_MAX][EVENT_MAX]: StateTableEntry
+    
+    --
+    ' Constructors/Destructors
+    + Create(): StateTableTokenizer*
+    + Destroy(me: StateTableTokenizer*): void
+    + Init(me: StateTableTokenizer*): void
+    + Cleanup(me: StateTableTokenizer*): void
+    
+    --
+    ' Core State Table Pattern Interface
+    + ProcessEvent(me: StateTableTokenizer*, event: EventType, eventData: char): int
+    + GetCurrentState(me: StateTableTokenizer*): StateType
+    + GetResult(me: StateTableTokenizer*): double
+    
+    --
+    ' Convenience Methods
+    + ProcessDigit(me: StateTableTokenizer*, c: char): int
+    + ProcessDot(me: StateTableTokenizer*): int
+    + ProcessWhitespace(me: StateTableTokenizer*): int
+    + ProcessEndOfString(me: StateTableTokenizer*): int
+    
+    --
+    ' Mutex Management
+    + SetMutex(me: StateTableTokenizer*, mutex: Mutex*): void
+    + GetMutex(me: StateTableTokenizer*): Mutex*
+    
+    --
+    ' Debugging and Statistics
+    + PrintStateTable(me: StateTableTokenizer*): void
+    + PrintStatistics(me: StateTableTokenizer*): void
+    + ResetStatistics(me: StateTableTokenizer*): void
+}
+
+' Action Functions
+class ActionFunctions <<utility>> {
+    + action_none(context: TokenizerContext*, eventData: char): void
+    + action_start_number(context: TokenizerContext*, eventData: char): void
+    + action_add_digit_whole(context: TokenizerContext*, eventData: char): void
+    + action_add_digit_fractional(context: TokenizerContext*, eventData: char): void
+    + action_start_fractional(context: TokenizerContext*, eventData: char): void
+    + action_finish_number(context: TokenizerContext*, eventData: char): void
+    + action_reset(context: TokenizerContext*, eventData: char): void
+}
+
+' Client class
+class StateTableClient <<client>> {
+    + processString(tokenizer: StateTableTokenizer*, input: char*): void
+    + demonstrateStateTable(): void
+    + interactiveMode(): void
+    + compareApproaches(): void
+    + main(argc: int, argv: char**): int
+}
+
+' Utility functions
+class StateTableTypes <<utility>> {
+    + digit(c: char): int
+    + stateToString(state: StateType): char*
+    + eventToString(event: EventType): char*
+    + actionToString(action: ActionType): char*
+}
+
+' Relationships
+StateTableTokenizer "1" *-- "1" TokenizerContext : contains
+StateTableTokenizer "1" *-- "STATE_MAX*EVENT_MAX" StateTableEntry : contains
+StateTableEntry "1" --> "1" StateType : transitions to
+StateTableEntry "1" --> "1" ActionType : specifies
+StateTableEntry "1" --> "0..1" ActionFunction : executes
+
+TokenizerContext "1" --> "1" StateType : current state
+TokenizerContext "1" --> "0..1" Mutex : protected by
+
+StateTableTokenizer ..> ActionFunctions : uses
+StateTableClient "1" --> "1" StateTableTokenizer : uses
+StateTableTokenizer ..> StateTableTypes : uses
+
+ActionFunction ..> TokenizerContext : operates on
+
+' Notes
+note right of StateTableTokenizer
+  <b>State Table Design Pattern</b>
+  
+  Core principle: Use a 2D lookup table
+  to determine state transitions and actions:
+  
+  stateTable[currentState][event] = {
+    nextState,
+    actionType,
+    actionFunction
+  }
+  
+  Benefits:
+  • O(1) transition lookup
+  • Data-driven configuration
+  • Easy to modify and debug
+  • Clear separation of concerns
+end note
+
+note bottom of StateTableEntry
+  Each table entry defines:
+  1. Next state to transition to
+  2. Type of action to perform
+  3. Function to execute the action
+  
+  This provides complete transition
+  information in a compact form.
+end note
+
+note top of TokenizerContext
+  Contains all state machine data:
+  • Current state and parsing results
+  • Statistics for debugging
+  • Thread synchronization
+end note
+
+note left of ActionFunctions
+  Action functions implement the
+  business logic for each transition.
+  They are called via function pointers
+  stored in the state table.
+end note
+
+@enduml

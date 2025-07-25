@@ -1,0 +1,234 @@
+@startuml DecomposedAndStatePattern_ClassDiagram
+
+!theme plain
+title Decomposed AND-State Pattern - Class Diagram\n(Enhanced with Pattern Structure)
+
+' Define the color scheme
+skinparam class {
+    BackgroundColor<<context>> LightBlue
+    BackgroundColor<<andstate>> LightGreen
+    BackgroundColor<<container>> LightYellow
+    BackgroundColor<<device>> LightCyan
+    BackgroundColor<<utility>> White
+    BorderColor Black
+    ArrowColor Black
+}
+
+skinparam note {
+    BackgroundColor LightGray
+    BorderColor Black
+}
+
+' Pattern Structure Classes
+package "Pattern Core" {
+    
+    class LightController <<context>> {
+        - asList[EMERGENCY_STATE+1]: AndStateList*
+        - currentState: HighLevelLightStates
+        - itsKlaxon: Klaxon*
+        - itsLight: Light*
+        - itsMutex: Mutex*
+        --
+        + evEnable(): void
+        + evDisable(): void
+        + reset(): void
+        + evOk(): void
+        + evWarning(): void
+        + evError(): void
+        + evRun(): void
+        + evShutDown(): void
+        + evAbort(): void
+        --
+        + enter_OffState(): void
+        + enter_OnState(): void
+        + enter_EmergencyState(): void
+        + exit_OffState(): void
+        + exit_OnState(): void
+        + exit_EmergencyState(): void
+        + enterNestedAndStates(): void
+        + exitNestedAndStates(): void
+    }
+    
+    class AndStateList <<container>> {
+        - andStates[MAX_ANDSTATES]: void*
+        - nAndStates: int
+        --
+        + Init(): void
+        + Cleanup(): void
+        + addAndState(): void
+        + removeAndState(): void
+    }
+    
+    abstract class AbstractAndState <<andstate>> {
+        # aSet: StateActionSet
+        # currentState: int
+        # defaultState: int
+        # itsLightController: LightController*
+        --
+        + {abstract} entryAction(): void
+        + {abstract} exitAction(): void
+        + {abstract} is_in(state: int): bool
+        + {abstract} handleEvent(event: int): bool
+    }
+    
+    class ErrorStateClass <<andstate>> {
+        - currentState: ErrorStatesType
+        - defaultState: ErrorStatesType
+        --
+        + entryAction(): void
+        + exitAction(): void
+        + evOk(): int
+        + evWarning(): int
+        + evError(): int
+        + is_in(state: ErrorStatesType): int
+    }
+    
+    class ModeStateClass <<andstate>> {
+        - currentState: ModeStatesType
+        - defaultState: ModeStatesType
+        --
+        + entryAction(): void
+        + exitAction(): void
+        + evRun(): int
+        + evShutDown(): int
+        + is_in(state: ModeStatesType): int
+    }
+}
+
+package "Supporting Infrastructure" {
+    
+    class StateActionSet <<utility>> {
+        + entryAction: ActionPtr0
+        + exitAction: ActionPtr0
+        + evAbortHandler: ActionPtr0
+        + evDisableHandler: ActionPtr0
+        + evEnableHandler: ActionPtr0
+        + evErrorHandler: ActionPtr0
+        + evOkHandler: ActionPtr0
+        + evRunHandler: ActionPtr0
+        + evShutDownHandler: ActionPtr0
+        + evWarningHandler: ActionPtr0
+        + is_inHandler: ActionPtr1
+    }
+    
+    typedef ActionPtr0 <<utility>> {
+        int (*ActionPtr0)(void*)
+    }
+    
+    typedef ActionPtr1 <<utility>> {
+        int (*ActionPtr1)(void*, int)
+    }
+}
+
+package "Device Layer" {
+    
+    class Light <<device>> {
+        - isOn: bool
+        - color: ColorType
+        - mode: FlashType
+        --
+        + turnOn(): void
+        + turnOff(): void
+        + setColor(color: ColorType): void
+        + setMode(mode: FlashType): void
+        + getColor(): ColorType
+        + getMode(): FlashType
+        + isOn(): bool
+    }
+    
+    class Klaxon <<device>> {
+        - isAlarming: bool
+        --
+        + alarmOn(): void
+        + alarmOff(): void
+        + isAlarming(): bool
+    }
+    
+    class Mutex <<utility>> {
+        - locked: bool
+        - owner_id: int
+        --
+        + lock(): int
+        + release(): int
+        + isLocked(): bool
+    }
+}
+
+package "State Enumerations" {
+    
+    enum HighLevelLightStates {
+        NULL_STATE
+        OFF_STATE
+        ON_STATE
+        EMERGENCY_STATE
+    }
+    
+    enum ErrorStatesType {
+        NULL_ERROR_STATE
+        OK_STATE
+        WARNING_STATE
+        ERROR_STATE
+    }
+    
+    enum ModeStatesType {
+        NULL_MODE_STATE
+        STARTINGUP_STATE
+        OPERATIONAL_STATE
+        SHUTTINGDOWN_STATE
+    }
+    
+    enum ColorType {
+        RED
+        YELLOW
+        GREEN
+    }
+    
+    enum FlashType {
+        STEADY
+        SLOWLY
+        QUICKLY
+    }
+}
+
+' Relationships - Pattern Structure
+LightController "1" *-- "3" AndStateList : manages states
+AndStateList "1" *-- "0..*" AbstractAndState : contains regions
+ErrorStateClass --|> AbstractAndState : implements
+ModeStateClass --|> AbstractAndState : implements
+
+' Relationships - Composition
+ErrorStateClass "1" *-- "1" StateActionSet : uses
+ModeStateClass "1" *-- "1" StateActionSet : uses
+StateActionSet ..> ActionPtr0 : uses
+StateActionSet ..> ActionPtr1 : uses
+
+' Relationships - Devices
+LightController "1" o-- "1" Light : controls
+LightController "1" o-- "1" Klaxon : controls
+LightController "1" o-- "1" Mutex : synchronizes
+
+' Relationships - Back References
+ErrorStateClass "1" --> "1" LightController : itsLightController
+ModeStateClass "1" --> "1" LightController : itsLightController
+
+' Relationships - Enums
+LightController ..> HighLevelLightStates : uses
+ErrorStateClass ..> ErrorStatesType : uses
+ModeStateClass ..> ModeStatesType : uses
+Light ..> ColorType : uses
+Light ..> FlashType : uses
+
+' Pattern Notes
+note top of LightController : "**Context Class**\n• Manages high-level state machine\n• Delegates events to orthogonal regions\n• Coordinates device operations"
+
+note right of AbstractAndState : "**AND-State Interface**\n• Defines contract for orthogonal regions\n• Encapsulates state-specific behavior\n• Maintains back-reference to context"
+
+note bottom of AndStateList : "**Container Pattern**\n• Manages collection of orthogonal regions\n• Enables dynamic region management\n• Provides uniform access interface"
+
+note left of ErrorStateClass : "**Error Region**\nStates: OK → WARNING → ERROR\nEvents: evOk, evWarning, evError\nActions: Light color changes"
+
+note left of ModeStateClass : "**Mode Region**\nStates: STARTINGUP → OPERATIONAL\n→ SHUTTINGDOWN\nEvents: evRun, evShutDown\nActions: Light mode changes"
+
+note bottom : "**Decomposed AND-State Pattern**\n• Separates orthogonal concerns into different classes\n• Enables concurrent state processing\n• Maintains loose coupling between regions\n• Supports guard conditions across regions"
+
+@enduml

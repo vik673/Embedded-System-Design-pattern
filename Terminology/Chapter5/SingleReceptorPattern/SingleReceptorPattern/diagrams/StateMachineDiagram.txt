@@ -1,0 +1,149 @@
+Single Event Receptor Pattern - State Machine Diagram
+====================================================
+
+STATE MACHINE OVERVIEW
+=======================
+
+                            ┌─────────────────────┐
+                            │                     │
+                            │    NULL_STATE       │
+                            │                     │
+                            └─────────────────────┘
+                                        │
+                                        │ initialization
+                                        ▼
+    ┌───────────────────────────────────────────────────────────────────┐
+    │                           NONUMBER_STATE                          │
+    │                                                                   │
+    │ Entry: result = 0.0                                               │
+    │ Exit: (no actions)                                                │
+    └───────────────────────────────────────────────────────────────────┘
+                                        │
+                                        │ EVDIGIT / EVDOT
+                                        ▼
+    ┌───────────────────────────────────────────────────────────────────┐
+    │                           GOTNUMBER_STATE                         │
+    │                                                                   │
+    │ Entry: tensPlace = 10.0                                           │
+    │ Exit: subStateID = NULL_SSTATE                                    │
+    │                                                                   │
+    │   ┌─────────────────────────┐    EVDOT    ┌─────────────────────┐ │
+    │   │ PROCESSINGWHOLEPART     │ ──────────► │ PROCESSINGFRACTIONAL│ │
+    │   │ _SSTATE                 │             │ PART_SSTATE         │ │
+    │   │                         │             │                     │ │
+    │   │ Entry:                  │             │ Entry: (no actions) │ │
+    │   │   result = result*10    │             │                     │ │
+    │   │   + digit(ch)           │             │ On EVDIGIT:         │ │
+    │   │                         │             │   result +=         │ │
+    │   │ Exit: (no actions)      │             │   digit(ch)/tensPlace│ │
+    │   │                         │             │   tensPlace *= 10   │ │
+    │   │ On EVDIGIT: stay        │             │                     │ │
+    │   │                         │             │ Exit: (no actions)  │ │
+    │   └─────────────────────────┘             └─────────────────────┘ │
+    │                                                                   │
+    └───────────────────────────────────────────────────────────────────┘
+                                        │
+                                        │ EVWHITESPACE / EVENDOFSTRING
+                                        │ Action: printf("Number: %g", result)
+                                        ▼
+    ┌───────────────────────────────────────────────────────────────────┐
+    │                           NONUMBER_STATE                          │
+    │                                                                   │
+    │ Entry: result = 0.0                                               │
+    │ Exit: (no actions)                                                │
+    └───────────────────────────────────────────────────────────────────┘
+
+EVENT TYPES AND TRANSITIONS
+============================
+
+Events:
+┌─────────────────┬─────────────────────────────────────────────────────┐
+│ Event Type      │ Description                                         │
+├─────────────────┼─────────────────────────────────────────────────────┤
+│ EVDIGIT         │ Numerical digit character ('0'-'9')                │
+│ EVDOT           │ Decimal point character ('.')                       │
+│ EVWHITESPACE    │ Space or tab character                              │
+│ EVENDOFSTRING   │ End of input string ('\0')                         │
+└─────────────────┴─────────────────────────────────────────────────────┘
+
+State Transition Table:
+┌──────────────────┬──────────────┬─────────────────────────────────────┐
+│ Current State    │ Event        │ Next State / Action                 │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ NONUMBER_STATE   │ EVDIGIT      │ GOTNUMBER_STATE/WHOLEPART           │
+│                  │              │ Action: Store digit, start number  │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ NONUMBER_STATE   │ EVDOT        │ GOTNUMBER_STATE/FRACTIONALPART      │
+│                  │              │ Action: Start fractional number    │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ NONUMBER_STATE   │ EVWHITESPACE │ NONUMBER_STATE (stay)               │
+│                  │ EVENDOFSTRING│ Action: Ignore                     │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ GOTNUMBER/WHOLE  │ EVDIGIT      │ GOTNUMBER/WHOLEPART (stay)          │
+│                  │              │ Action: Append digit to whole part │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ GOTNUMBER/WHOLE  │ EVDOT        │ GOTNUMBER/FRACTIONALPART            │
+│                  │              │ Action: Switch to fractional       │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ GOTNUMBER/WHOLE  │ EVWHITESPACE │ NONUMBER_STATE                      │
+│                  │ EVENDOFSTRING│ Action: Complete number, output     │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ GOTNUMBER/FRAC   │ EVDIGIT      │ GOTNUMBER/FRACTIONALPART (stay)     │
+│                  │              │ Action: Append digit to frac part  │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ GOTNUMBER/FRAC   │ EVDOT        │ Error (ignored)                     │
+├──────────────────┼──────────────┼─────────────────────────────────────┤
+│ GOTNUMBER/FRAC   │ EVWHITESPACE │ NONUMBER_STATE                      │
+│                  │ EVENDOFSTRING│ Action: Complete number, output     │
+└──────────────────┴──────────────┴─────────────────────────────────────┘
+
+PARSING EXAMPLES
+================
+
+Example 1: "123.45"
+───────────────────
+Input: '1' → EVDIGIT → NONUMBER → GOTNUMBER/WHOLE → result = 1
+Input: '2' → EVDIGIT → GOTNUMBER/WHOLE → GOTNUMBER/WHOLE → result = 12  
+Input: '3' → EVDIGIT → GOTNUMBER/WHOLE → GOTNUMBER/WHOLE → result = 123
+Input: '.' → EVDOT   → GOTNUMBER/WHOLE → GOTNUMBER/FRAC → result = 123
+Input: '4' → EVDIGIT → GOTNUMBER/FRAC → GOTNUMBER/FRAC → result = 123.4
+Input: '5' → EVDIGIT → GOTNUMBER/FRAC → GOTNUMBER/FRAC → result = 123.45
+Input: ' ' → EVWHITESPACE → GOTNUMBER/FRAC → NONUMBER → Output: "Number: 123.45"
+
+Example 2: ".789"
+─────────────────
+Input: '.' → EVDOT   → NONUMBER → GOTNUMBER/FRAC → result = 0
+Input: '7' → EVDIGIT → GOTNUMBER/FRAC → GOTNUMBER/FRAC → result = 0.7
+Input: '8' → EVDIGIT → GOTNUMBER/FRAC → GOTNUMBER/FRAC → result = 0.78
+Input: '9' → EVDIGIT → GOTNUMBER/FRAC → GOTNUMBER/FRAC → result = 0.789
+Input: EOF → EVENDOFSTRING → GOTNUMBER/FRAC → NONUMBER → Output: "Number: 0.789"
+
+MATHEMATICAL OPERATIONS
+=======================
+
+Whole Part Processing:
+    result = result * 10 + digit_value
+    Example: 
+        Initial: result = 0
+        '1': result = 0 * 10 + 1 = 1
+        '2': result = 1 * 10 + 2 = 12
+        '3': result = 12 * 10 + 3 = 123
+
+Fractional Part Processing:
+    result = result + (digit_value / tensPlace)
+    tensPlace = tensPlace * 10
+    Example:
+        Initial: result = 123, tensPlace = 10
+        '4': result = 123 + (4/10) = 123.4, tensPlace = 100
+        '5': result = 123.4 + (5/100) = 123.45, tensPlace = 1000
+
+SYNCHRONOUS vs ASYNCHRONOUS FLOW
+=================================
+
+Synchronous Flow:
+    Client → eventDispatch() → State Processing → Return to Client
+
+Asynchronous Flow:
+    Client → post(event) → EventQueue → Signal → taskLoop() → eventDispatch()
+                                                     ↑              ↓
+                                                     └── waitOnSignal() ←┘

@@ -1,0 +1,114 @@
+@startuml Smart_Data_Pattern_Structure
+
+title Smart Data Pattern - Structure Diagram
+
+!define PATTERN_COLOR #FFE4B5
+!define ROLE_COLOR #E6E6FA
+!define CONCRETE_COLOR #F0F8FF
+
+package "Smart Data Pattern" PATTERN_COLOR {
+    
+    class "<<Role>>\nErrorCodeType" as ErrorCodeType ROLE_COLOR {
+        + NO_ERRORS
+        + BELOW_RANGE
+        + ABOVE_RANGE
+        + INCONSISTENT_VALUE
+        + ILLEGAL_USE_OF_NULL_PTR
+        + INDEX_OUT_OF_RANGE
+    }
+    
+    class "<<Role>>\nErrorManager" as ErrorManager ROLE_COLOR {
+        + addAlarm(ErrorCodeType)
+        + clearAlarm()
+        + getCurrentAlarm()
+        + getAlarmCount()
+        + getAlarmMessage()
+    }
+    
+    class "<<Role>>\nSmartDataType" as SmartDataType ROLE_COLOR {
+        - PrimitiveType value
+        - PrimitiveType lowRange
+        - PrimitiveType highRange
+        - ErrorCodeType errorCode
+        - ErrorManager* errorManager
+        --
+        + Init(value, low, high, ErrorManager*)
+        + checkValidity()
+        + setPrimitive(PrimitiveType)
+        + getPrimitive()
+        + setValue(SmartDataType)
+        + getValue()
+        + setLowBoundary(PrimitiveType)
+        + setHighBoundary(PrimitiveType)
+        + getLowBoundary()
+        + getHighBoundary()
+        + errorHandler(ErrorCodeType)
+    }
+    
+    class "<<Role>>\nServerClass" as ServerClass ROLE_COLOR {
+        - SmartDataType[] smartData
+        --
+        + checkAllData()
+        + accessData()
+        + modifyData()
+    }
+}
+
+package "Concrete Implementation" CONCRETE_COLOR {
+    
+    class "AlarmManager" as ConcreteErrorManager CONCRETE_COLOR {
+        - ErrorCodeType currentAlarm
+        - int alarmCount
+        - char alarmMessage[256]
+    }
+    
+    class "SmartInt" as ConcreteSmartInt CONCRETE_COLOR {
+        - int value
+        - int lowRange
+        - int highRange
+        - ErrorCodeType errorCode
+        - AlarmManager* itsAlarmManager
+    }
+    
+    class "SmartColor" as ConcreteSmartColor CONCRETE_COLOR {
+        - ColorType value
+        - ColorType lowRange
+        - ColorType highRange
+        - ErrorCodeType errorCode
+        - AlarmManager* itsAlarmManager
+    }
+    
+    class "PatientDataClass" as ConcreteServerClass CONCRETE_COLOR {
+        - SmartInt age
+        - SmartInt weight
+        - SmartInt heartRate
+        - SmartColor foregroundColor
+        - SmartColor backgroundColor
+        - char name[100]
+        - long patientID
+    }
+}
+
+' Pattern Role Relationships
+ErrorManager ||..|| SmartDataType : <<uses>>
+SmartDataType ||..|| ErrorCodeType : <<uses>>
+ServerClass ||--o{ SmartDataType : <<contains>>
+
+' Implementation Relationships
+ConcreteErrorManager ..|> ErrorManager : <<realizes>>
+ConcreteSmartInt ..|> SmartDataType : <<realizes>>
+ConcreteSmartColor ..|> SmartDataType : <<realizes>>
+ConcreteServerClass ..|> ServerClass : <<realizes>>
+
+ConcreteSmartInt ||--o{ ConcreteErrorManager : uses
+ConcreteSmartColor ||--o{ ConcreteErrorManager : uses
+ConcreteServerClass ||--o{ ConcreteSmartInt : contains
+ConcreteServerClass ||--o{ ConcreteSmartColor : contains
+
+note top of SmartDataType : Core pattern role that provides\nself-checking data with automatic\nrange validation and error reporting
+
+note bottom of ServerClass : Client role that uses smart data types\nto ensure data integrity and\ndefensive programming practices
+
+note right of ErrorManager : Handles error reporting and\nmanagement for smart data types.\nProvides centralized error handling.
+
+@enduml

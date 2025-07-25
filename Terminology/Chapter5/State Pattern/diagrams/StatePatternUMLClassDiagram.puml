@@ -1,0 +1,130 @@
+@startuml StatePattern_ClassDiagram
+!define RECTANGLE class
+
+title State Pattern - UML Class Diagram\n(Number Tokenizer)
+
+package "State Pattern Implementation" {
+    
+    abstract class State {
+        + {abstract} handleDigit(context: Context*, digit: char) : bool
+        + {abstract} handleDot(context: Context*) : bool
+        + {abstract} handleWhitespace(context: Context*) : bool
+        + {abstract} handleEndOfString(context: Context*) : bool
+        + {abstract} getStateName() : string
+        + entryAction(context: Context*) : void
+        + exitAction(context: Context*) : void
+    }
+
+    class Context {
+        - currentState: unique_ptr<State>
+        - result: double
+        - tensPlace: double
+        - currentChar: char
+        - input: string
+        - position: size_t
+        
+        + Context()
+        + setState(newState: unique_ptr<State>) : void
+        + getCurrentState() : State*
+        + processDigit(digit: char) : bool
+        + processDot() : bool
+        + processWhitespace() : bool
+        + processEndOfString() : bool
+        + getResult() : double
+        + setResult(value: double) : void
+        + getTensPlace() : double
+        + setTensPlace(value: double) : void
+        + getCurrentChar() : char
+        + setCurrentChar(c: char) : void
+        + processString(str: string) : void
+        + printResult() : void
+        + reset() : void
+        + {static} digitValue(c: char) : int
+        + {static} isDigit(c: char) : bool
+    }
+
+    class NoNumberState {
+        + handleDigit(context: Context*, digit: char) : bool
+        + handleDot(context: Context*) : bool
+        + handleWhitespace(context: Context*) : bool
+        + handleEndOfString(context: Context*) : bool
+        + entryAction(context: Context*) : void
+        + getStateName() : string
+    }
+
+    class ProcessingWholeState {
+        + handleDigit(context: Context*, digit: char) : bool
+        + handleDot(context: Context*) : bool
+        + handleWhitespace(context: Context*) : bool
+        + handleEndOfString(context: Context*) : bool
+        + entryAction(context: Context*) : void
+        + getStateName() : string
+    }
+
+    class ProcessingFractionState {
+        + handleDigit(context: Context*, digit: char) : bool
+        + handleDot(context: Context*) : bool
+        + handleWhitespace(context: Context*) : bool
+        + handleEndOfString(context: Context*) : bool
+        + entryAction(context: Context*) : void
+        + getStateName() : string
+    }
+}
+
+' Relationships
+Context --> State : currentState
+State <|-- NoNumberState : implements
+State <|-- ProcessingWholeState : implements
+State <|-- ProcessingFractionState : implements
+
+' Dependencies (calls)
+Context ..> NoNumberState : creates
+Context ..> ProcessingWholeState : creates
+Context ..> ProcessingFractionState : creates
+
+NoNumberState ..> ProcessingWholeState : transitions to
+ProcessingWholeState ..> ProcessingFractionState : transitions to
+ProcessingWholeState ..> NoNumberState : transitions to
+ProcessingFractionState ..> NoNumberState : transitions to
+
+' Notes
+note right of State
+    Abstract base class defining
+    the interface for all states.
+    Each state handles different
+    events and can transition
+    to other states.
+end note
+
+note right of Context
+    Maintains reference to current
+    state and delegates event
+    handling to the current state.
+    Contains the data being
+    processed (result, tensPlace).
+end note
+
+note bottom of NoNumberState
+    Initial state. Waits for
+    first digit to start
+    number processing.
+    Transitions to ProcessingWholeState
+    on digit input.
+end note
+
+note bottom of ProcessingWholeState
+    Processes the whole part
+    of a number. Can transition
+    to ProcessingFractionState
+    on dot, or back to NoNumberState
+    on whitespace/end.
+end note
+
+note bottom of ProcessingFractionState
+    Processes the fractional part
+    of a number. Transitions back
+    to NoNumberState on
+    whitespace/end of string.
+end note
+
+@enduml

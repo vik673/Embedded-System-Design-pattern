@@ -1,0 +1,136 @@
+@startuml StateTablePattern_StateDiagram
+
+!theme plain
+title State Table Design Pattern - State Machine Diagram
+
+' Styling
+skinparam state {
+    BackgroundColor LightBlue
+    BorderColor Black
+    FontSize 12
+}
+
+' Initial state
+[*] --> STATE_NONUMBER : [Initial]
+
+' Main states
+state STATE_NONUMBER {
+    STATE_NONUMBER : entry / result = 0.0
+    STATE_NONUMBER : This state indicates no number\nis currently being processed
+}
+
+state STATE_GOTNUMBER_WHOLE {
+    STATE_GOTNUMBER_WHOLE : entry / (varies by transition)
+    STATE_GOTNUMBER_WHOLE : Processing the whole number part\n(digits before decimal point)
+}
+
+state STATE_GOTNUMBER_FRACTIONAL {
+    STATE_GOTNUMBER_FRACTIONAL : entry / tensPlace = 10.0
+    STATE_GOTNUMBER_FRACTIONAL : Processing the fractional part\n(digits after decimal point)
+}
+
+' Transitions from STATE_NONUMBER
+STATE_NONUMBER --> STATE_GOTNUMBER_WHOLE : EVENT_DIGIT /\naction_start_number()
+STATE_NONUMBER --> STATE_GOTNUMBER_FRACTIONAL : EVENT_DOT /\naction_start_fractional()
+STATE_NONUMBER --> STATE_NONUMBER : EVENT_WHITESPACE /\naction_none()
+STATE_NONUMBER --> STATE_NONUMBER : EVENT_END_OF_STRING /\naction_none()
+
+' Transitions from STATE_GOTNUMBER_WHOLE
+STATE_GOTNUMBER_WHOLE --> STATE_GOTNUMBER_WHOLE : EVENT_DIGIT /\naction_add_digit_whole()
+STATE_GOTNUMBER_WHOLE --> STATE_GOTNUMBER_FRACTIONAL : EVENT_DOT /\naction_start_fractional()
+STATE_GOTNUMBER_WHOLE --> STATE_NONUMBER : EVENT_WHITESPACE /\naction_finish_number()
+STATE_GOTNUMBER_WHOLE --> STATE_NONUMBER : EVENT_END_OF_STRING /\naction_finish_number()
+
+' Transitions from STATE_GOTNUMBER_FRACTIONAL
+STATE_GOTNUMBER_FRACTIONAL --> STATE_GOTNUMBER_FRACTIONAL : EVENT_DIGIT /\naction_add_digit_fractional()
+STATE_GOTNUMBER_FRACTIONAL --> STATE_GOTNUMBER_FRACTIONAL : EVENT_DOT /\naction_none() [ignore]
+STATE_GOTNUMBER_FRACTIONAL --> STATE_NONUMBER : EVENT_WHITESPACE /\naction_finish_number()
+STATE_GOTNUMBER_FRACTIONAL --> STATE_NONUMBER : EVENT_END_OF_STRING /\naction_finish_number()
+
+' Notes explaining the pattern
+note right of STATE_NONUMBER
+  <b>State Table Lookup:</b>
+  
+  stateTable[STATE_NONUMBER][EVENT_DIGIT] = {
+    nextState: STATE_GOTNUMBER_WHOLE,
+    actionType: ACTION_START_NUMBER,
+    actionFunc: action_start_number
+  }
+  
+  <b>Benefits:</b>
+  • O(1) transition lookup
+  • Data-driven configuration
+  • Easy runtime analysis
+end note
+
+note bottom of STATE_GOTNUMBER_WHOLE
+  <b>Action Functions:</b>
+  
+  action_start_number():
+  • result = digit(eventData)
+  • tensPlace = 10.0
+  
+  action_add_digit_whole():
+  • result = result * 10 + digit(eventData)
+  
+  action_finish_number():
+  • print("Finished number: " + result)
+end note
+
+note top of STATE_GOTNUMBER_FRACTIONAL
+  <b>Fractional Processing:</b>
+  
+  action_add_digit_fractional():
+  • result += digit(eventData) / tensPlace
+  • tensPlace *= 10.0
+  
+  Example for "0.123":
+  • '1': result += 1/10, tensPlace = 100
+  • '2': result += 2/100, tensPlace = 1000
+  • '3': result += 3/1000, tensPlace = 10000
+end note
+
+' State table visualization
+note as StateTableNote
+  <b>Complete State Transition Table:</b>
+  
+  | Current State           | Event              | Next State              | Action                    |
+  |-------------------------|--------------------|-----------------------|---------------------------|
+  | STATE_NONUMBER         | EVENT_DIGIT        | STATE_GOTNUMBER_WHOLE   | action_start_number       |
+  | STATE_NONUMBER         | EVENT_DOT          | STATE_GOTNUMBER_FRACTIONAL | action_start_fractional |
+  | STATE_NONUMBER         | EVENT_WHITESPACE   | STATE_NONUMBER         | action_none               |
+  | STATE_NONUMBER         | EVENT_END_OF_STRING| STATE_NONUMBER         | action_none               |
+  | STATE_GOTNUMBER_WHOLE  | EVENT_DIGIT        | STATE_GOTNUMBER_WHOLE   | action_add_digit_whole    |
+  | STATE_GOTNUMBER_WHOLE  | EVENT_DOT          | STATE_GOTNUMBER_FRACTIONAL | action_start_fractional |
+  | STATE_GOTNUMBER_WHOLE  | EVENT_WHITESPACE   | STATE_NONUMBER         | action_finish_number      |
+  | STATE_GOTNUMBER_WHOLE  | EVENT_END_OF_STRING| STATE_NONUMBER         | action_finish_number      |
+  | STATE_GOTNUMBER_FRACTIONAL | EVENT_DIGIT    | STATE_GOTNUMBER_FRACTIONAL | action_add_digit_fractional |
+  | STATE_GOTNUMBER_FRACTIONAL | EVENT_DOT      | STATE_GOTNUMBER_FRACTIONAL | action_none             |
+  | STATE_GOTNUMBER_FRACTIONAL | EVENT_WHITESPACE| STATE_NONUMBER        | action_finish_number      |
+  | STATE_GOTNUMBER_FRACTIONAL | EVENT_END_OF_STRING| STATE_NONUMBER     | action_finish_number      |
+end note
+
+' Legend
+legend bottom
+  <b>Event Types:</b>
+  • EVENT_DIGIT - Process digit character ('0'-'9')
+  • EVENT_DOT - Process decimal point ('.')
+  • EVENT_WHITESPACE - Process whitespace (number separator)
+  • EVENT_END_OF_STRING - Signal end of input
+  
+  <b>State Table Pattern Advantages:</b>
+  • Consistent O(1) lookup time for all transitions
+  • Table can be modified at runtime if needed
+  • Clear separation between state logic and business logic
+  • Easy to debug and analyze state machine behavior
+  • Scales well with additional states and events
+  
+  <b>Implementation:</b>
+  ProcessEvent(event, data) {
+    entry = stateTable[currentState][event];
+    entry.actionFunc(context, data);
+    currentState = entry.nextState;
+  }
+endlegend
+
+@enduml

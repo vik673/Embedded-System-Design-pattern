@@ -1,0 +1,133 @@
+@startuml MultipleReceptorPattern_SequenceDiagram
+
+!theme plain
+title Multiple Event Receptor Pattern - Sequence Diagram\nParsing "123.45"
+
+' Participants
+actor Client
+participant "tokenizer:\nTokenizerMultiReceptor" as TMR
+participant "mutex:\nMutex" as Mutex
+
+' Styling
+skinparam participant {
+    BackgroundColor LightBlue
+    BorderColor Black
+}
+skinparam actor {
+    BackgroundColor LightYellow
+}
+
+== Initialization ==
+Client -> TMR: Create()
+activate TMR
+TMR -> TMR: Init()
+note right: stateID = NONUMBER_STATE\nsubStateID = NULL_SSTATE\nresult = 0.0
+
+Client -> Mutex: Create()
+activate Mutex
+return mutex
+
+Client -> TMR: setItsMutex(mutex)
+deactivate TMR
+
+== Processing Character '1' ==
+Client -> TMR: evDigit('1')
+activate TMR
+TMR -> Mutex: lock()
+TMR -> TMR: exit_NoNumber()
+note right: Transition from NONUMBER_STATE
+TMR -> TMR: enter_GotNumber()
+note right: stateID = GOTNUMBER_STATE\ntensPlace = 10.0
+TMR -> TMR: enter_ProcessingWholePart()
+note right: subStateID = PROCESSINGWHOLEPART_SSTATE\nresult = 0*10 + 1 = 1
+TMR -> Mutex: release()
+return
+deactivate TMR
+
+== Processing Character '2' ==
+Client -> TMR: evDigit('2')
+activate TMR
+TMR -> Mutex: lock()
+TMR -> TMR: exit_ProcessingWholePart()
+TMR -> TMR: enter_ProcessingWholePart()
+note right: result = 1*10 + 2 = 12
+TMR -> Mutex: release()
+return
+deactivate TMR
+
+== Processing Character '3' ==
+Client -> TMR: evDigit('3')
+activate TMR
+TMR -> Mutex: lock()
+TMR -> TMR: exit_ProcessingWholePart()
+TMR -> TMR: enter_ProcessingWholePart()
+note right: result = 12*10 + 3 = 123
+TMR -> Mutex: release()
+return
+deactivate TMR
+
+== Processing Decimal Point '.' ==
+Client -> TMR: evDot()
+activate TMR
+TMR -> Mutex: lock()
+TMR -> TMR: exit_ProcessingWholePart()
+TMR -> TMR: enter_ProcessingFractionalPart()
+note right: subStateID = PROCESSINGFRACTIONALPART_SSTATE
+TMR -> Mutex: release()
+return
+deactivate TMR
+
+== Processing Character '4' ==
+Client -> TMR: evDigit('4')
+activate TMR
+TMR -> Mutex: lock()
+TMR -> TMR: exit_ProcessingFractionalPart()
+note right: result = 123 + 4/10 = 123.4\ntensPlace = 100
+TMR -> TMR: enter_ProcessingFractionalPart()
+TMR -> Mutex: release()
+return
+deactivate TMR
+
+== Processing Character '5' ==
+Client -> TMR: evDigit('5')
+activate TMR
+TMR -> Mutex: lock()
+TMR -> TMR: exit_ProcessingFractionalPart()
+note right: result = 123.4 + 5/100 = 123.45\ntensPlace = 1000
+TMR -> TMR: enter_ProcessingFractionalPart()
+TMR -> Mutex: release()
+return
+deactivate TMR
+
+== End of String ==
+Client -> TMR: evEndOfString()
+activate TMR
+TMR -> Mutex: lock()
+TMR -> TMR: exit_ProcessingFractionalPart()
+TMR -> TMR: exit_GotNumber()
+note right: subStateID = NULL_SSTATE
+TMR -> TMR: enter_NoNumber()
+note right: stateID = NONUMBER_STATE\nresult = 0.0 (reset for next number)
+TMR -> Mutex: release()
+return "Final Number: 123.45"
+deactivate TMR
+
+== Cleanup ==
+Client -> TMR: Destroy()
+activate TMR
+TMR -> TMR: Cleanup()
+deactivate TMR
+
+Client -> Mutex: Destroy()
+deactivate Mutex
+
+note over Client, Mutex
+  <b>Key Pattern Benefits:</b>
+  
+  1. <b>Separation of Concerns:</b> Each event has its own receptor
+  2. <b>Thread Safety:</b> Mutex ensures run-to-completion semantics
+  3. <b>Clear State Management:</b> Explicit entry/exit actions
+  4. <b>Scalability:</b> Easy to add new events and states
+end note
+
+@enduml

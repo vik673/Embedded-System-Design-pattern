@@ -1,0 +1,72 @@
+@startuml StatePattern_SequenceDiagram
+!theme plain
+
+title State Pattern - Sequence Diagram\n(Processing "1.3")
+
+actor Client
+participant Context
+participant NoNumberState as "NoNumber\nState"
+participant ProcessingWholeState as "ProcessingWhole\nState" 
+participant ProcessingFractionState as "ProcessingFraction\nState"
+
+== Initialization ==
+Client -> Context : new Context()
+Context -> NoNumberState : new NoNumberState()
+Context -> NoNumberState : entryAction(context)
+NoNumberState -> Context : setResult(0.0)
+
+== Processing Character '1' ==
+Client -> Context : processDigit('1')
+Context -> NoNumberState : handleDigit(context, '1')
+NoNumberState -> NoNumberState : exitAction(context)
+NoNumberState -> Context : setCurrentChar('1')
+NoNumberState -> Context : setTensPlace(10.0)
+NoNumberState -> Context : setState(ProcessingWholeState)
+Context -> ProcessingWholeState : new ProcessingWholeState()
+Context -> ProcessingWholeState : entryAction(context)
+ProcessingWholeState -> Context : getResult() 
+ProcessingWholeState -> Context : getCurrentChar()
+ProcessingWholeState -> Context : setResult(1.0)
+NoNumberState --> Context : return true
+Context --> Client : return true
+
+== Processing Character '.' ==
+Client -> Context : processDot()
+Context -> ProcessingWholeState : handleDot(context)
+ProcessingWholeState -> ProcessingWholeState : exitAction(context)
+ProcessingWholeState -> Context : setState(ProcessingFractionState)
+Context -> ProcessingFractionState : new ProcessingFractionState()
+Context -> ProcessingFractionState : entryAction(context)
+ProcessingFractionState -> Context : setTensPlace(10.0)
+ProcessingWholeState --> Context : return true
+Context --> Client : return true
+
+== Processing Character '3' ==
+Client -> Context : processDigit('3')
+Context -> ProcessingFractionState : handleDigit(context, '3')
+ProcessingFractionState -> Context : setCurrentChar('3')
+ProcessingFractionState -> Context : getResult()
+ProcessingFractionState -> Context : getTensPlace()
+ProcessingFractionState -> Context : setResult(1.3)
+ProcessingFractionState -> Context : setTensPlace(100.0)
+ProcessingFractionState --> Context : return true
+Context --> Client : return true
+
+== Processing End of String ==
+Client -> Context : processEndOfString()
+Context -> ProcessingFractionState : handleEndOfString(context)
+ProcessingFractionState -> ProcessingFractionState : exitAction(context)
+ProcessingFractionState -> Context : printResult()
+ProcessingFractionState -> Context : setState(NoNumberState)
+Context -> NoNumberState : new NoNumberState()
+Context -> NoNumberState : entryAction(context)
+NoNumberState -> Context : setResult(0.0)
+ProcessingFractionState --> Context : return true
+Context --> Client : return true
+
+== Result ==
+note over Context, ProcessingFractionState
+    Final parsed number: 1.3
+end note
+
+@enduml

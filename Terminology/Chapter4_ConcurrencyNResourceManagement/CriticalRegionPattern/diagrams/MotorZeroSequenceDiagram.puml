@@ -1,0 +1,61 @@
+@startuml CriticalRegionPattern_MotorZero_SequenceDiagram
+!theme plain
+title Critical Region Pattern - motorZero Operation Sequence
+
+actor Client
+participant "manager: CRRobotArmManager" as Manager
+participant "robotArm: RobotArm" as RobotArm
+participant "display: CRDisplay" as Display
+participant "OS_TaskSwitching" as OS
+
+Client -> Manager: motorZero()
+activate Manager
+
+note over Manager: motorZero() operation starts\nLocal variable: success = 1
+
+/' Critical Region Implementation '/
+Manager -> OS: OS_disable_task_switching()
+activate OS
+note over OS, RobotArm: **CRITICAL REGION STARTS**\nNo task switching allowed\nNo interruptions possible
+
+Manager -> RobotArm: moveTo(0, 0, 0)
+activate RobotArm
+note over RobotArm: Robot arm moves to zero position\nThis operation must complete atomically
+RobotArm --> Manager: return success (1 or 0)
+deactivate RobotArm
+
+Manager -> OS: OS_enable_task_switching()
+note over OS, RobotArm: **CRITICAL REGION ENDS**\nTask switching re-enabled\nOther tasks can now run
+deactivate OS
+
+/' Error Handling (Non-critical) '/
+alt success == 0
+    Manager -> Display: printMsg("Cannot zero!")
+    activate Display
+    note over Display: Error message displayed\n(Non-critical operation)
+    deactivate Display
+end
+
+Manager --> Client: operation complete
+deactivate Manager
+
+note right of Manager
+    Critical Region Characteristics:
+    • Short duration
+    • Atomic operation
+    • No nested critical regions
+    • Proper cleanup (always re-enable)
+    • Error handling outside critical region
+end note
+
+note right of OS
+    OS Services Used:
+    • OS_disable_task_switching()
+    • OS_enable_task_switching()
+    
+    Alternative Implementation:
+    • Disable interrupts directly
+    • Hardware-level control
+end note
+
+@enduml

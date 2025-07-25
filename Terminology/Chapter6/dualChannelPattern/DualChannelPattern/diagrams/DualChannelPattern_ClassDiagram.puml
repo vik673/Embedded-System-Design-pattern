@@ -1,0 +1,243 @@
+@startuml DualChannelPattern_ClassDiagram
+
+!define RECTANGLE class
+!theme plain
+
+title Dual Channel Pattern - Class Diagram
+
+' Abstract classes and interfaces
+abstract class AbstractDataTransform {
+    -itsNext : AbstractDataTransform*
+    -itsActuatorDeviceDriver : ActuatorDeviceDriver*
+    -itsTransformChecker : AbstractTransformChecker*
+    
+    +AbstractDataTransform_Init(me : AbstractDataTransform*) : void
+    +AbstractDataTransform_Cleanup(me : AbstractDataTransform*) : void
+    +{abstract} transform(data : double) : double
+    +process(data : double) : void
+    +setNext(next : AbstractDataTransform*) : void
+    +setActuatorDriver(driver : ActuatorDeviceDriver*) : void
+    +setTransformChecker(checker : AbstractTransformChecker*) : void
+    +getNext() : AbstractDataTransform*
+    +getActuatorDriver() : ActuatorDeviceDriver*
+    +getTransformChecker() : AbstractTransformChecker*
+}
+
+abstract class AbstractTransformChecker {
+    -itsChannel : Channel*
+    -itsOtherChannel : Channel*
+    
+    +AbstractTransformChecker_Init(me : AbstractTransformChecker*) : void
+    +AbstractTransformChecker_Cleanup(me : AbstractTransformChecker*) : void
+    +{abstract} check(data : double) : int
+    +setChannel(channel : Channel*) : void
+    +setOtherChannel(otherChannel : Channel*) : void
+    +switchToOtherChannel() : void
+}
+
+' Concrete Data Transforms
+class SpeedFilterTransform {
+    -filterCoefficient : double
+    -previousValue : double
+    
+    +SpeedFilterTransform_Create() : SpeedFilterTransform*
+    +SpeedFilterTransform_Destroy(me : SpeedFilterTransform*) : void
+    +SpeedFilterTransform_Init(me : SpeedFilterTransform*) : void
+    +SpeedFilterTransform_Cleanup(me : SpeedFilterTransform*) : void
+    +transform(rawSpeed : double) : double
+}
+
+class SpeedToEngineOutputTransform {
+    -targetSpeed : double
+    -proportionalGain : double
+    -integralGain : double
+    -derivativeGain : double
+    -previousError : double
+    -integralSum : double
+    
+    +SpeedToEngineOutputTransform_Create() : SpeedToEngineOutputTransform*
+    +SpeedToEngineOutputTransform_Destroy(me : SpeedToEngineOutputTransform*) : void
+    +SpeedToEngineOutputTransform_Init(me : SpeedToEngineOutputTransform*) : void
+    +SpeedToEngineOutputTransform_Cleanup(me : SpeedToEngineOutputTransform*) : void
+    +transform(currentSpeed : double) : double
+    +setTargetSpeed(speed : double) : void
+}
+
+' Concrete Transform Checker
+class ReasonablenessChecker {
+    -minReasonableValue : double
+    -maxReasonableValue : double
+    -tolerance : double
+    
+    +ReasonablenessChecker_Create() : ReasonablenessChecker*
+    +ReasonablenessChecker_Destroy(me : ReasonablenessChecker*) : void
+    +ReasonablenessChecker_Init(me : ReasonablenessChecker*) : void
+    +ReasonablenessChecker_Cleanup(me : ReasonablenessChecker*) : void
+    +check(engineOutput : double) : int
+    +setReasonableLimits(min : double, max : double) : void
+}
+
+' Sensor Device Drivers
+abstract class SensorDeviceDriver {
+    +SensorDeviceDriver_Init(me : SensorDeviceDriver*) : void
+    +SensorDeviceDriver_Cleanup(me : SensorDeviceDriver*) : void
+    +{abstract} readSensor() : double
+    +{abstract} isDataValid() : int
+}
+
+class OpticalWheelSpeedSensor {
+    -wheelCircumference : double
+    -lastPulseTime : unsigned long
+    -pulseCount : int
+    
+    +OpticalWheelSpeedSensor_Create() : OpticalWheelSpeedSensor*
+    +OpticalWheelSpeedSensor_Destroy(me : OpticalWheelSpeedSensor*) : void
+    +OpticalWheelSpeedSensor_Init(me : OpticalWheelSpeedSensor*) : void
+    +OpticalWheelSpeedSensor_Cleanup(me : OpticalWheelSpeedSensor*) : void
+    +readSensor() : double
+    +isDataValid() : int
+    +calibrateWheelCircumference(circumference : double) : void
+}
+
+class GPSSpeedSensor {
+    -latitude : double
+    -longitude : double
+    -altitude : double
+    -previousLatitude : double
+    -previousLongitude : double
+    -previousTime : unsigned long
+    -satelliteCount : int
+    
+    +GPSSpeedSensor_Create() : GPSSpeedSensor*
+    +GPSSpeedSensor_Destroy(me : GPSSpeedSensor*) : void
+    +GPSSpeedSensor_Init(me : GPSSpeedSensor*) : void
+    +GPSSpeedSensor_Cleanup(me : GPSSpeedSensor*) : void
+    +readSensor() : double
+    +isDataValid() : int
+    +calculateSpeedFromPosition() : double
+    +updatePosition() : void
+}
+
+' Actuator Device Driver
+class ActuatorDeviceDriver {
+    -isEnabled : int
+    -lastCommandTime : unsigned long
+    
+    +ActuatorDeviceDriver_Create() : ActuatorDeviceDriver*
+    +ActuatorDeviceDriver_Destroy(me : ActuatorDeviceDriver*) : void
+    +ActuatorDeviceDriver_Init(me : ActuatorDeviceDriver*) : void
+    +ActuatorDeviceDriver_Cleanup(me : ActuatorDeviceDriver*) : void
+    +actuate(value : double) : void
+    +enable() : void
+    +disable() : void
+    +isActuatorEnabled() : int
+}
+
+class EngineActuator {
+    -currentThrottlePosition : double
+    -maxThrottlePosition : double
+    -minThrottlePosition : double
+    
+    +EngineActuator_Create() : EngineActuator*
+    +EngineActuator_Destroy(me : EngineActuator*) : void
+    +EngineActuator_Init(me : EngineActuator*) : void
+    +EngineActuator_Cleanup(me : EngineActuator*) : void
+    +setThrottlePosition(position : double) : void
+    +getCurrentThrottlePosition() : double
+    +setThrottleLimits(min : double, max : double) : void
+}
+
+' Channel
+class Channel {
+    -itsDataTransform : AbstractDataTransform*
+    -itsSensorDriver : SensorDeviceDriver*
+    -itsActuatorDriver : ActuatorDeviceDriver*
+    -isEnabled : int
+    -channelId : int
+    
+    +Channel_Create(id : int) : Channel*
+    +Channel_Destroy(me : Channel*) : void
+    +Channel_Init(me : Channel*, id : int) : void
+    +Channel_Cleanup(me : Channel*) : void
+    +enable() : void
+    +disable() : void
+    +isChannelEnabled() : int
+    +processData() : void
+    +setDataTransform(transform : AbstractDataTransform*) : void
+    +setSensorDriver(sensor : SensorDeviceDriver*) : void
+    +setActuatorDriver(actuator : ActuatorDeviceDriver*) : void
+    +getChannelId() : int
+}
+
+' Dual Channel Manager
+class DualChannelPattern {
+    -primaryChannel : Channel*
+    -secondaryChannel : Channel*
+    -activePrimary : int
+    -faultSafeMode : int
+    
+    +DualChannelPattern_Create() : DualChannelPattern*
+    +DualChannelPattern_Destroy(me : DualChannelPattern*) : void
+    +DualChannelPattern_Init(me : DualChannelPattern*) : void
+    +DualChannelPattern_Cleanup(me : DualChannelPattern*) : void
+    +setPrimaryChannel(channel : Channel*) : void
+    +setSecondaryChannel(channel : Channel*) : void
+    +switchChannels() : void
+    +enterFaultSafeMode() : void
+    +processChannels() : void
+    +isFaultSafeMode() : int
+}
+
+' Inheritance relationships
+AbstractDataTransform <|-- SpeedFilterTransform
+AbstractDataTransform <|-- SpeedToEngineOutputTransform
+AbstractTransformChecker <|-- ReasonablenessChecker
+SensorDeviceDriver <|-- OpticalWheelSpeedSensor
+SensorDeviceDriver <|-- GPSSpeedSensor
+ActuatorDeviceDriver <|-- EngineActuator
+
+' Composition and aggregation relationships
+Channel *-- AbstractDataTransform : contains
+Channel *-- SensorDeviceDriver : contains
+Channel *-- ActuatorDeviceDriver : contains
+DualChannelPattern *-- Channel : primaryChannel
+DualChannelPattern *-- Channel : secondaryChannel
+
+' Association relationships
+AbstractDataTransform --> AbstractDataTransform : itsNext
+AbstractDataTransform --> ActuatorDeviceDriver : itsActuatorDeviceDriver
+AbstractDataTransform --> AbstractTransformChecker : itsTransformChecker
+AbstractTransformChecker --> Channel : itsChannel
+AbstractTransformChecker --> Channel : itsOtherChannel
+
+' Notes
+note right of DualChannelPattern
+    Manages dual channels for redundancy:
+    - Homogeneous: Same design, addresses random faults
+    - Heterogeneous: Different designs, addresses both random and systematic faults
+    - Can operate in active/standby or active/active mode
+end note
+
+note left of Channel
+    Unit of redundancy containing:
+    - Sensor data acquisition
+    - Data transformation chain
+    - Actuation output
+    - Enable/disable capability
+end note
+
+note top of AbstractTransformChecker
+    Can switch between channels when:
+    - Data validation fails
+    - Reasonableness check fails
+    - Fault detected in current channel
+end note
+
+note bottom of ReasonablenessChecker
+    Example train speed control:
+    - Optical wheel speed channel
+    - GPS speed channel
+    - Cross-validation between channels
+end note
+
+@enduml

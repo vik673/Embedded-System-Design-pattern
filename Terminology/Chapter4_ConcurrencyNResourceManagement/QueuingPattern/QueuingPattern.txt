@@ -1,0 +1,975 @@
+Queuing Pattern
+The Queuing Pattern is the most common implementation of task asynchronous communication. It provides a simple means of communication between tasks that are uncoupled in
+time. The Queuing Pattern accomplishes this communication by storing messages in a queue,
+a nominally first-in-first-out data structure. The sender deposits a message in the queue and
+some time later, the receiver withdraws the message from the queue. It also provides a
+simple means of serializing access to a shared resource. The access messages are queued and
+handled at a later time and this avoids the mutual exclusion problem common to sharing
+resources.
+4.6.1 Abstract
+The Message Queuing Pattern uses asynchronous communications, implemented via queued
+messages, to synchronize and share information among tasks. This approach has the advantage
+of simplicity and does not experience mutual exclusion problems because no resource is shared
+by reference. Any information shared among threads is passed by value to the separate thread.
+While this limits the complexity of the collaboration among the threads, this approach in its
+pure form is immune to the standard resource corruption problems that plague concurrent
+systems that share information passed by reference. In passed by value sharing, a copy of the
+information is made and sent to the receiving thread for processing. The receiving thread fully
+owns the data it receives and so may modify them freely without concern for corrupting data
+due to multiple writers or due to sharing them among a writer and multiple readers. A downside
+of the pattern is that the message isn’t processed immediately after the sender posts it; the
+process waits until the receiver task runs and can process the waiting messages.
+4.6.2 Problem
+In multithreaded systems, tasks must synchronize and share information with others. Two
+primary things must be accomplished. First, the tasks must synchronize to permit sharing of the
+information. Secondly, the information must be shared in such a way that there is no chance of
+corruption or race conditions. This pattern addresses such task interaction
+Pattern Structure
+The Queuing Pattern structure is shown in Figure 4-17. The QUEUE_SIZE declaration determines the maximum number of elements that the queue can retain. Care must be taken to ensure
+that this is large enough to handle the worst-case situation for your system usage, while not
+being so large as to waste memory.
+4.6.4 Collaboration Roles
+This section describes the roles for this pattern.
+4.6.4.1 Message
+The Message class is an abstraction of a message of relevance between QTasks. It can be
+anything from a simple data value to an elaborate datagram structure such as used in TCP/IP
+messaging.
+4.6.4.2 MessageQueue
+The MessageQueue is the storage of information being exchanged between QTasks.
+The MessageQueue can store up to a maximum of QUEUE_SIZE message elements. The
+MessageQueue provides the following methods:
+• int MessageQueue_getNextIndex(MessageQueue* me, int index)
+A private (static) function that uses modulo arithmetic to compute the next valid index
+value.
+
+int MessageQueue_insert(MessageQueue* me, Message m)
+A public function that, if the MessageQueue isn’t full, inserts a Message into the queue at
+the head position and updates the head index. It returns 0 if the insert succeeds and 1 if the
+MessageQueue was full.
+•	 Message* MessageQueue_remove(MessageQueue* me)
+A public function that, if the MessageQueue isn’t empty, removes the oldest message,
+creates a new heap variable to hold the data, updates the tail index, and returns that
+pointer to the caller. It returns a pointer to a Message if successful and a NULL pointer
+if not.
+•	 unsigned char MessageQueue_isFull(MessageQueue* me)
+A private function that returns 1 if the MessageQueue is full and 0 otherwise.
+•	 unsigned char MessageQueue_isEmpty(MessageQueue* me)
+A private function that returns 1 if the MessageQueue is empty and 1 otherwise.
+4.6.4.3 Mutex
+The Mutex is a mutual exclusion semaphore object that serializes access to a MessageQueue.
+The guarded functions of the MessageQueue invoke the lock() function of the Mutex
+whenever they are called and release() once the service is complete. Other client threads
+that attempt to invoke a service when its associated Mutex is locked become blocked until
+the Mutex is unlocked. This element is usually provided by the RTOS. Note this is the
+same element that appears in the Static Priority Pattern earlier in this chapter.
+4.6.4.4 Qtask
+The QTask class is a client of the MessageQueue and invokes either the insert() or
+remove() functions to access the data held there
+
+Consequences
+The Queuing Pattern provides good serialization of access to the data as they are passed
+among tasks. The use of the mutex ensures that the MessageQueue itself isn’t corrupted by
+simultaneous access to the MessageQueue’s services. The reception of the data is less timely
+than the Guarded Call Pattern since the Queuing Pattern implements asynchronous
+communication.
+The number of elements held by the queue can be quite large; this is useful as the products of
+the elements run in a “bursty” fashion, allowing for the consumer of the elements to catch up
+later in time. Poorly sized queues can lead to data loss (if too small) or wasted memory (if too
+large). Very small queues (that can hold one or two elements) can be used for simple
+asynchronous data exchange when the problem of data loss isn’t present.
+Implementation Strategies
+The simplest implementation of a queue is as an array of message elements. This has the
+advantage of simplicity but lacks the flexibility of a linked list.
+Queues are fairly simple to implement but there are many possible variants. Sometimes some
+messages are more urgent or important than others and should be processed before waiting for
+lower priority messages. The MessageQueue can be modified to implement priority by adding
+either multiple buffers (one for each priority) or by inserting the element in the queue on the
+basis of the message priority (although this can increase the timing necessary for an element
+insertion and deletion). In this case, the message should have a priority attribute to enable the
+MessageQueue to properly insert and remove the element.
+In complex systems, it may not be feasible to predict an optimal queue size. In such cases,
+extensible queues can be implemented. When the MessageQueue is full, more memory is
+allocated. A linked list implementation of the MessageQueue is more appropriate for an
+extensible queue. It may be difficult to determine under what circumstances it is appropriate to
+shrink the queue and release unused memory.
+Itsometimes happensthat the potential number of elements exceeds memory capacity. In this case, a
+cached queue can be created; in such a queue, there are essentially three storage locations; a local
+memory newest data buffer, a local memory oldest data buffer, and a file that holds data of
+intermediate age. When the local new data buffer becomesfull, it is emptied to the file system. When
+the local old data buffer becomes empty, the data from the file system are loaded into the local old
+data buffer and removed from the disk (or copied from the new data buffer if the file is empty). This
+allows storage of potentially huge volumes of data, but caching the data can be time intensive.
+Related Patterns
+The Queuing Pattern serializes access to data by queuing data or commands, allowing the recipient
+to handle them one at a time. It does this asynchronously, so the time between the sending of the
+message and its processing is uncoupled. This may not meet the performance needs of the system.
+The Guarded Call Pattern also serializes access but does so synchronously, so that data and
+command transfers generally happen closer together in time. However, the Guarded Call Pattern
+can lead to unbounded priority inversion if not used carefully. In addition, if the receiver isn’t
+ready to receive the message from the sender, the sender must block or take another action.
+4.6.8 Example
+Figure 4-18 shows an example of producers and consumers that share data via a queue. The
+key element for this pattern is the GasDataQueue. It implements a small 10-element queue of
+GasData. GasData is a struct that contains an enumerated GAS_TYPE (with enumerated values
+O2_GAS, N2_GAS, HE_GAS, and UNKNOWN_GAS), the gas concentration (a double), and
+the flow rate in ccs per minute (int). Code Listing 4-31 gives the #defines and general
+declarations. Code Listing 4-32 and Code Listing 4-33 give the code for the GasData struct.
+#ifndef QueuingExample_H
+
+#define QueuingExample_H
+
+struct GasController;
+
+struct GasData;
+
+struct GasDataQueue;
+
+struct GasDisplay;
+ 
+ struct GasProcessingThread;
+
+struct HeSensor;
+
+struct N2Sensor;
+
+struct O2Sensor;
+
+struct OSSemaphore;
+
+struct SensorThread;
+
+typedef enum GAS_TYPE {
+
+O2_GAS,
+
+N2_GAS,
+
+HE_GAS,
+
+UNKNOWN_GAS
+
+} GAS_TYPE;
+/* define the size of the queue */
+
+#define GAS_QUEUE_SIZE (10)
+
+/* OS semaphore services */
+
+struct OSSemaphore* OS_create_semaphore(void);
+
+void OS_destroy_semaphore(struct OSSemaphore* sPtr);
+
+void OS_lock_semaphore(struct OSSemaphore* sPtr);
+
+void OS_release_semaphore(struct OSSemaphore* sPtr);
+
+#endif
+
+thi is implmentation file for GasDataExample.h
+
+#ifndef GasData_H
+
+#define GasData_H
+
+#include "QueuingExample.h"
+typedef struct GasData GasData;
+struct GasData {
+
+double conc;
+
+unsigned int flowInCCPerMin;
+
+GAS_TYPE gType;
+
+};
+/* Constructors and destructors:*/
+void GasData_Init(GasData* const me);
+
+void GasData_Cleanup(GasData* const me);
+
+GasData * GasData_Create(void);
+
+void GasData_Destroy(GasData* const me);
+
+#endif
+
+this is : GasData.h
+
+#include "GasData.h"
+void GasData_Init(GasData* const me) {
+
+me->conc = 0.0;
+
+me->flowInCCPerMin = 0;
+
+me->gType = UNKNOWN_GAS;
+
+}
+void GasData_Cleanup(GasData* const me) {
+
+}
+
+GasData * GasData_Create(void) {
+
+GasData* me = (GasData *) malloc(sizeof(GasData));
+
+if(me!=NULL) {
+
+GasData_Init(me);
+
+}
+
+return me;
+
+}
+void GasData_Destroy(GasData* const me) {
+
+if(me!=NULL) {
+
+GasData_Cleanup(me);
+
+}
+
+free(me);
+
+}
+
+this is implmentation file for GasData.c
+
+The GasDataQueue is the center of the pattern. Its two operations insert() and remove()
+enqueue new data and dequeue oldest data, respectively. The insert() function returns TRUE if it
+succeeded and FALSE otherwise. The remove() function returns a pointer to a GasData
+instance for which the client is responsible for deleting. If the remove() function fails, it returns
+a NULL pointer.
+The class also includes some private (static) helper functions such as getNextIndex() which
+computes the next index using modulo arithmetic to wrap around the top of the queue,
+isEmpty(), which returns TRUE if the queue has no elements, and isFull(), which returns
+TRUE if there is no space to hold additional elements.
+Code Listing 4-34 and Code Listing 4-35 give the C code for the GasDataQueue.
+#ifndef GasDataQueue_H
+
+#define GasDataQueue_H
+
+#include "QueuingExample.h"
+
+#include "GasData.h"
+ 
+ #include "OSSemaphore.h"
+typedef struct GasDataQueue GasDataQueue;
+struct GasDataQueue {
+
+int head;
+
+OSSemaphore * sema;
+
+int size;
+
+int tail;
+
+struct GasData itsGasData[GAS_QUEUE_SIZE];
+
+};
+/* Constructors and destructors:*/
+void GasDataQueue_Init(GasDataQueue* const me);
+
+void GasDataQueue_Cleanup(GasDataQueue* const me);
+
+/* Operations */
+
+int GasDataQueue_insert(GasDataQueue* const me, GasData g);
+
+GasData * GasDataQueue_remove(GasDataQueue* const me);
+
+int GasDataQueue_getItsGasData(const GasDataQueue* const me);
+
+GasDataQueue * GasDataQueue_Create(void);
+
+void GasDataQueue_Destroy(GasDataQueue* const me);
+
+#endif
+
+Code Listing 4-34: GasDataQueue.h
+#include "GasDataQueue.h"
+
+#include <stdio.h>
+
+/* private (static) methods */
+
+static void cleanUpRelations(GasDataQueue* const me);
+ 
+ 
+ static int getNextIndex(GasDataQueue* const me, int index);
+
+static unsigned char isEmpty(GasDataQueue* const me);
+
+static unsigned char isFull(GasDataQueue* const me);
+
+static void initRelations(GasDataQueue* const me);
+
+void GasDataQueue_Init(GasDataQueue* const me) {
+
+me->head = 0;
+
+me->sema = NULL;
+
+me->size = 0;
+
+me->tail = 0;
+
+initRelations(me);
+
+me->sema = OS_create_semaphore();
+}
+void GasDataQueue_Cleanup(GasDataQueue* const me) {
+OS_destroy_semaphore(me->sema);
+cleanUpRelations(me);
+}
+/*
+Insert puts new gas data elements into the queue
+if possible. It returns 1 if successful, 0 otherwise.
+*/
+int GasDataQueue_insert(GasDataQueue* const me, GasData g) {
+OS_lock_semaphore(me->sema);
+if (!isFull(me)) {
+me->itsGasData[me->head] = g;
+
+me->head = getNextIndex(me, me->head);
+
+++me->size;
+
+/* instrumentation */
+
+/* print stuff out, just to visualize the insertions */
+
+switch (g.gType) {
+
+case O2_GAS:
+
+printf("+++ Oxygen ");
+
+break;
+
+case N2_GAS:
+
+printf("+++ Nitrogen ");
+
+break;
+
+case HE_GAS:
+
+printf("+++ Helium ");
+
+break;
+
+default:
+
+printf("UNKNWON ");
+
+break;
+
+};
+
+printf(" at conc %f, flow %d\n",g.conc,g.flowInCCPerMin);
+
+printf(" Number of elements queued %d, head = %d, tail = %d\n",
+
+me->size, me->head, me->tail);
+
+/* end instrumentation */
+
+OS_release_semaphore(me->sema);
+return 1;
+
+}
+
+else { /* return error indication */
+
+OS_release_semaphore(me->sema);
+
+return 0;
+
+}
+
+}
+/*
+remove creates a new element on the heap, copies
+the contents of the oldest data into it, and
+
+returns the pointer. Returns NULL if the queue
+
+is empty
+
+*/
+GasData * GasDataQueue_remove(GasDataQueue* const me) {
+GasData* gPtr;
+OS_lock_semaphore(me->sema);
+if (!isEmpty(me)) {
+gPtr = (GasData*)malloc(sizeof(GasData));
+gPtr->gType = me->itsGasData[me->tail].gType;
+gPtr->conc = me->itsGasData[me->tail].conc;
+gPtr->flowInCCPerMin = me->itsGasData[me->tail].flowInCCPerMin;
+me->tail = getNextIndex(me, me->tail);
+–me->size;
+/* instrumentation */
+switch (gPtr->gType) {
+case O2_GAS:
+
+printf("— Oxygen ");
+
+break;
+
+case N2_GAS:
+
+printf("— Nitrogen ");
+
+break;
+
+case HE_GAS:
+
+printf("— Helium ");
+
+break;
+
+default:
+
+printf("— UNKNWON ");
+
+break;
+
+};
+
+printf(" at conc %f, flow %d\n",gPtr->conc,gPtr->flowInCCPerMin);
+
+printf(" Number of elements queued %d, head = %d, tail = %d\n",
+
+me->size, me->head, me->tail);
+
+/* end instrumentation */
+
+OS_release_semaphore(me->sema);
+
+return gPtr;
+
+}
+
+else { /* if empty return NULL ptr */
+
+OS_release_semaphore(me->sema);
+
+return NULL;
+
+}
+
+}
+static int getNextIndex(GasDataQueue* const me, int index) {
+/* this operation computes the next index from the
+first using modulo arithmetic
+*/
+return (index+1) % QUEUE_SIZE;
+}
+
+static unsigned char isEmpty(GasDataQueue* const me) {
+
+return (me->size == 0);
+
+}
+
+static unsigned char isFull(GasDataQueue* const me) {
+
+return (me->size == GAS_QUEUE_SIZE);
+
+}
+
+int GasDataQueue_getItsGasData(const GasDataQueue* const me) {
+
+int iter = 0;
+
+return iter;
+
+}
+GasDataQueue * GasDataQueue_Create(void) {
+
+GasDataQueue* me = (GasDataQueue *)
+
+malloc(sizeof(GasDataQueue));
+
+if(me!=NULL) {
+
+GasDataQueue_Init(me);
+
+}
+
+return me;
+
+}
+void GasDataQueue_Destroy(GasDataQueue* const me) {
+
+if(me!=NULL) {
+
+GasDataQueue_Cleanup(me);
+
+}
+
+free(me);
+
+}
+static void initRelations(GasDataQueue* const me) {
+
+int iter = 0;
+
+while (iter < GAS_QUEUE_SIZE){
+
+GasData_Init(&((me->itsGasData)[iter]));
+
+iter++;
+
+}
+
+}
+
+static void cleanUpRelations(GasDataQueue* const me) {
+
+int iter = 0;
+
+while (iter < GAS_QUEUE_SIZE){
+
+GasData_Cleanup(&((me->itsGasData)[iter]));
+
+iter++;
+
+}
+
+}
+
+Code Listing 4-35: GasDataQueue.c
+
+In the example (Figure 4-18) two threads run clients. The SensorThread owns three clients
+itself, an O2Sensor, N2Sensor, and HeSensor. When this thread runs the main function of
+this thread (SensorThread_updateData()), it calls the getXXData() function of each to
+produce the data, and then marshalls the data up into GasData structs and sends them off. The
+relevant code (less the task initiation and supporting functions) for the SensorThread is given
+in Code Listing 4-36 and Code Listing 4-37.
+/* … initial declaratons stuff above … */
+typedef struct SensorThread SensorThread;
+struct SensorThread {
+
+struct GasDataQueue* itsGasDataQueue;
+
+struct HeSensor itsHeSensor;
+
+struct N2Sensor itsN2Sensor;
+
+struct O2Sensor itsO2Sensor;
+
+};
+/* Operations */
+void SensorThread_updateData(SensorThread* const me);
+/* … other operations declared too … */
+
+#endif
+
+Code Listing 4-36: SensorThread.h
+/*
+
+updateData runs every period of the sensor thread
+
+and calls the getXXData() function of each of
+
+its sensors, then uses a random number generator
+
+to decide which data should be published to the
+
+GasDataQueue.
+
+*/
+void SensorThread_updateData(SensorThread* const me) {
+
+unsigned char success;
+
+GasData g;
+
+GasData_Init(&g);
+O2Sensor_getO2Data(&(me->itsO2Sensor));
+
+N2Sensor_getN2Data(&(me->itsN2Sensor));
+
+HeSensor_getHeData(&(me->itsHeSensor));
+
+if (rand() > RAND_MAX / 3) {
+
+g.gType = HE_GAS;
+
+g.conc = me->itsHeSensor.conc;
+
+g.flowInCCPerMin = me->itsHeSensor.flow;
+ 
+ success = GasDataQueue_insert(me->itsGasDataQueue, g);
+
+if (!success)
+
+printf("Helium Gas Data queue insertion failed!\n");
+
+};
+
+if (rand() > RAND_MAX / 3) {
+
+g.gType = N2_GAS;
+
+g.conc = me->itsN2Sensor.conc;
+
+g.flowInCCPerMin = me->itsN2Sensor.flow;
+
+success = GasDataQueue_insert(me->itsGasDataQueue, g);
+
+if (!success)
+
+printf("Nitrogen Gas Data queue insertion failed!\n");
+
+};
+
+if (rand() > RAND_MAX / 3) {
+
+g.gType = O2_GAS;
+
+g.conc = me->itsO2Sensor.conc;
+
+g.flowInCCPerMin = me->itsO2Sensor.flow;
+
+success = GasDataQueue_insert(me->itsGasDataQueue, g);
+
+if (!success)
+
+printf("Oxygen Gas Data queue insertion failed! \n");
+
+}
+
+}
+
+Code Listing 4-37: updateData function of SensorThread.c
+The sensors in this example are pretty simple – they just augment their values over time but
+they show that they just produce data; the SensorThread_updateData() function is
+responsible for pushing the data out to the queue. Code Listing 4-38 and Code Listing 4-39
+show the code for one of these sensors
+
+#ifndef O2Sensor_H
+
+#define O2Sensor_H
+
+#include "QueuingExample.h"
+typedef struct O2Sensor O2Sensor;
+struct O2Sensor {
+
+double conc;
+
+unsigned int flow;
+
+};
+/* Constructors and destructors:*/
+void O2Sensor_Init(O2Sensor* const me);
+
+void O2Sensor_Cleanup(O2Sensor* const me);
+ 
+/* Operations */
+void O2Sensor_getO2Data(O2Sensor* const me);
+
+O2Sensor * O2Sensor_Create(void);
+
+void O2Sensor_Destroy(O2Sensor* const me);
+
+#endif
+Code Listing 4-38: O2Sensor.h
+#include "O2Sensor.h"
+
+#include <stdlib.h>
+
+#include <stdio.h>
+
+void O2Sensor_Init(O2Sensor* const me) {
+
+me->conc = 0.0;
+
+me->flow = 0;
+
+}
+void O2Sensor_Cleanup(O2Sensor* const me) {
+
+}
+
+/*
+
+getO2Data() is where the sensor class would
+
+actually acquire the data. Here it just
+
+augments it.
+
+*/
+void O2Sensor_getO2Data(O2Sensor* const me) {
+
+me->conc += 20;
+
+me->flow += 25;
+
+}
+O2Sensor * O2Sensor_Create(void) {
+O2Sensor* me = (O2Sensor *) malloc(sizeof(O2Sensor));
+if(me!=NULL) {
+O2Sensor_Init(me);
+
+}
+
+return me;
+
+}
+void O2Sensor_Destroy(O2Sensor* const me) {
+
+if(me!=NULL) {
+
+O2Sensor_Cleanup(me);
+
+}
+
+free(me);
+
+}
+Code Listing 4-39: O2Sensor.c
+On the consumer side, the GasProcessingThread_processData() runs periodically and
+pulls data out. If there are data available, it calls the function GasController_handleGasData
+() of its nested instance of GasController. This function just prints out the data (by calling the
+GasDisplay_printGasData() function) but one can imagine that it might find more interesting
+things to do with the data, such as maintain a constant gas delivery of appropriate concentrations.
+Code Listing 4-40 through Code Listing 4-43 show the code for these two elements.
+#ifndef GasController_H
+
+#define GasController_H
+
+#include "QueuingExample.h"
+
+#include "GasData.h"
+
+struct GasDisplay;
+
+typedef struct GasController GasController;
+
+struct GasController {
+
+struct GasDisplay* itsGasDisplay;
+
+};
+
+/* Constructors and destructors:*/
+void GasController_Init(GasController* const me);
+
+void GasController_Cleanup(GasController* const me);
+
+/* Operations */
+
+void GasController_handleGasData(GasController* const me, GasData
+
+* gPtr);
+struct GasDisplay* GasController_getItsGasDisplay(const
+
+GasController* const me);
+
+void GasController_setItsGasDisplay(GasController* const me,
+
+struct GasDisplay* p_GasDisplay);
+
+GasController * GasController_Create(void);
+void GasController_Destroy(GasController* const me);
+#endif
+Code Listing 4-40: GasController.h
+#include "GasController.h"
+
+#include "GasDisplay.h"
+
+#include <stdio.h>
+
+static void cleanUpRelations(GasController* const me);
+ 
+void GasController_Init(GasController* const me) {
+
+me->itsGasDisplay = NULL;
+
+}
+
+void GasController_Cleanup(GasController* const me) {
+
+cleanUpRelations(me);
+
+}
+
+void GasController_handleGasData(GasController* const me, GasData * gPtr) {
+if (gPtr) {
+GasDisplay_printGasData(me->itsGasDisplay, gPtr->gType, gPtr->conc,
+gPtr->flowInCCPerMin);
+free(gPtr);
+};
+}
+struct GasDisplay* GasController_getItsGasDisplay(const GasController* const me) {
+return (struct GasDisplay*)me->itsGasDisplay;
+}
+void GasController_setItsGasDisplay(GasController* const me, struct GasDisplay*
+p_GasDisplay) {
+me->itsGasDisplay = p_GasDisplay;
+
+}
+
+GasController * GasController_Create(void) {
+
+GasController* me = (GasController *)
+
+malloc(sizeof(GasController));
+
+if(me!=NULL)
+
+{
+
+GasController_Init(me);
+
+}
+
+return me;
+
+}
+void GasController_Destroy(GasController* const me) {
+
+if(me!=NULL)
+
+{
+
+GasController_Cleanup(me);
+
+}
+
+free(me);
+
+}
+static void cleanUpRelations(GasController* const me) {
+
+if(me->itsGasDisplay != NULL)
+
+{
+
+me->itsGasDisplay = NULL;
+
+}
+
+}
+Code Listing 4-18: GasController.c
+#include "QueuingExample.h"
+
+#include "GasData.h"
+
+typedef struct GasDisplay GasDisplay;
+
+struct GasDisplay {
+
+int screenWidth;
+
+};
+
+/* Constructors and destructors:*/
+
+void GasDisplay_Init(GasDisplay* const me);
+
+void GasDisplay_Cleanup(GasDisplay* const me);
+
+/* Operations */
+
+void GasDisplay_printGasData(GasDisplay* const me, const GAS_TYPE gasType, double
+
+gas_conc, unsigned int gas_flow);
+
+GasDisplay * GasDisplay_Create(void);
+
+void GasDisplay_Destroy(GasDisplay* const me);
+
+#endif
+
+Code Listing 4-19: GasDisplay.h
+#include "GasDisplay.h"
+
+#include <stdio.h>
+
+void GasDisplay_Init(GasDisplay* const me) {
+
+me->screenWidth = 80;
+
+}
+
+void GasDisplay_Cleanup(GasDisplay* const me) {
+
+}
+
+void GasDisplay_printGasData(GasDisplay* const me, const GAS_TYPE gasType, double
+gas_conc, unsigned int gas_flow) {
+
+printf("\n");
+
+switch (gasType) {
+
+case O2_GAS:
+
+printf("Oxygen ");
+
+break;
+
+case N2_GAS:
+
+printf("Nitrogen ");
+
+break;
+
+case HE_GAS:
+printf("Helium ");
+
+break;
+
+default:
+
+printf("UNKNWON ");
+
+break;
+
+};
+
+printf("Conc %f, Flow in CC/Min %d\n", gas_conc, gas_flow);
+
+printf("\n");
+
+}
+GasDisplay * GasDisplay_Create(void) {
+
+GasDisplay* me = (GasDisplay *) malloc(sizeof(GasDisplay));
+
+if(me!=NULL) {
+
+GasDisplay_Init(me);
+
+}
+
+return me;
+
+}
+void GasDisplay_Destroy(GasDisplay* const me) {
+
+if(me!=NULL) {
+
+GasDisplay_Cleanup(me);
+
+}
+
+free(me);
+
+}
+Code Listing 4-43: GasDisplay.c
+
+Figure 4-19 shows a four-second run of the example in which the GasProcessingThread
+runs first at a period of 1000 ms and the SensorThread runs second at a period of 500 ms and
+a queue size of 10. You can see that even though each of the three gas sensors only has a
+1/3 chance of producing data during the interval, data are put in faster than they are removed
+and the queue eventually fills up. The insert operation is instrumented with a printf()
+statement to show when data are inserted. The GasController’s handleGasData() is
+invoked every period of the GasProcessingThread and it calls the GasDisplay’s
+printGasData() function.

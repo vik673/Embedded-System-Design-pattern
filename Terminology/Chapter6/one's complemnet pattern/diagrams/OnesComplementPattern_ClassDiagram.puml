@@ -1,0 +1,66 @@
+@startuml OnesComplementPattern_ClassDiagram
+
+!define RECTANGLE class
+
+' Class Diagram for One's Complement Pattern
+
+class DataClient {
+    +requestData() : AttitudeDataType
+    +setData(data : AttitudeDataType) : void
+}
+
+class OwnShipAttitude {
+    -attitude : AttitudeDataType
+    -invertedAttitude : AttitudeDataType
+    -itsAlarmManager : AlarmManager*
+    
+    +OwnShipAttitude_Init(me : OwnShipAttitude*) : void
+    +OwnShipAttitude_Cleanup(me : OwnShipAttitude*) : void
+    +OwnShipAttitude_Create() : OwnShipAttitude*
+    +OwnShipAttitude_Destroy(me : OwnShipAttitude*) : void
+    +getAttitude(aPtr : AttitudeDataType*) : int
+    +setAttitude(a : AttitudeDataType) : void
+    +invert(a : AttitudeDataType) : AttitudeDataType
+    +errorHandler() : void
+    +getItsAlarmManager() : AlarmManager*
+    +setItsAlarmManager(p_AlarmManager : AlarmManager*) : void
+    -cleanUpRelations() : void
+}
+
+class AttitudeDataType {
+    +roll : int
+    +pitch : int
+    +yaw : int
+    
+    +AttitudeDataType_Init(me : AttitudeDataType*) : void
+}
+
+class AlarmManager {
+    +addAlarm(alarmCode : int) : void
+    +removeAlarm(alarmCode : int) : void
+    +getAlarmStatus() : int
+}
+
+' Relationships
+DataClient --> OwnShipAttitude : uses >
+OwnShipAttitude --> AttitudeDataType : contains >
+OwnShipAttitude --> AlarmManager : uses >
+OwnShipAttitude *-- AttitudeDataType : attitude
+OwnShipAttitude *-- AttitudeDataType : invertedAttitude
+
+' Notes
+note right of OwnShipAttitude
+    Implements One's Complement Pattern:
+    - Stores data in normal form
+    - Stores data in inverted form
+    - Validates data integrity on access
+    - Triggers error handling on corruption
+end note
+
+note left of AttitudeDataType
+    Contains critical attitude data:
+    - roll, pitch, yaw values
+    - Subject to memory corruption
+end note
+
+@enduml

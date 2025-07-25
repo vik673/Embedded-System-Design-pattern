@@ -1,0 +1,289 @@
+@startuml DecomposedAndStatePattern_ClassDiagram
+
+!theme plain
+title Decomposed AND-State Pattern - Class Diagram
+
+' Define the color scheme
+skinparam class {
+    BackgroundColor<<main>> LightBlue
+    BackgroundColor<<andstate>> LightGreen
+    BackgroundColor<<utility>> LightYellow
+    BackgroundColor<<support>> LightCyan
+    BorderColor Black
+    ArrowColor Black
+}
+
+' Enumerations
+enum HighLevelLightStates {
+    NULL_STATE
+    OFF_STATE
+    ON_STATE
+    EMERGENCY_STATE
+}
+
+enum ErrorStatesType {
+    NULL_ERROR_STATE
+    OK_STATE
+    WARNING_STATE
+    ERROR_STATE
+}
+
+enum ModeStatesType {
+    NULL_MODE_STATE
+    OPERATIONAL_STATE
+    STARTINGUP_STATE
+    SHUTTINGDOWN_STATE
+}
+
+enum ColorType {
+    RED
+    YELLOW
+    GREEN
+}
+
+enum FlashType {
+    STEADY
+    SLOWLY
+    QUICKLY
+}
+
+enum On_State_Regions {
+    ERRORSTATUS_ANDSTATE
+    MODE_ANDSTATE
+}
+
+' Function pointer types
+class ActionPtr0 <<utility>> {
+    <<typedef>>
+    int (*ActionPtr0)(void*)
+}
+
+class ActionPtr1 <<utility>> {
+    <<typedef>>
+    int (*ActionPtr1)(void*, int)
+}
+
+' StateActionSet - Function pointer collection
+class StateActionSet <<utility>> {
+    + entryAction: ActionPtr0
+    + evAbortHandler: ActionPtr0
+    + evDisableHandler: ActionPtr0
+    + evEnableHandler: ActionPtr0
+    + evErrorHandler: ActionPtr0
+    + evOkHandler: ActionPtr0
+    + evRunHandler: ActionPtr0
+    + evShutDownHandler: ActionPtr0
+    + evWarningHandler: ActionPtr0
+    + exitAction: ActionPtr0
+    + is_inHandler: ActionPtr1
+    --
+    + Init(me: StateActionSet*): void
+    + Cleanup(me: StateActionSet*): void
+    + Create(): StateActionSet*
+    + Destroy(me: StateActionSet*): void
+}
+
+' AndStateList - Container for orthogonal regions
+class AndStateList <<utility>> {
+    + andStates[MAX_ANDSTATES]: ErrorStateClass*
+    + nAndStates: int
+    --
+    + Init(me: AndStateList*): void
+    + Cleanup(me: AndStateList*): void
+    + Create(): AndStateList*
+    + Destroy(me: AndStateList*): void
+}
+
+' Abstract AND-State representation (conceptual)
+abstract class AbstractAndStateClass <<andstate>> {
+    + aSet: StateActionSet
+    + currentState: int
+    + defaultState: int
+    + itsLightController: LightController*
+    --
+    + entryAction(me: AbstractAndStateClass*): void
+    + exitAction(me: AbstractAndStateClass*): void
+    + is_in(me: AbstractAndStateClass*, state: int): int
+}
+
+' ErrorStateClass - Concrete AND-state implementation
+class ErrorStateClass <<andstate>> {
+    + aSet: StateActionSet
+    + currentState: ErrorStatesType
+    + defaultState: ErrorStatesType
+    + itsLightController: LightController*
+    --
+    + Init(me: ErrorStateClass*): void
+    + Cleanup(me: ErrorStateClass*): void
+    + entryAction(me: ErrorStateClass*): void
+    + evAbort(me: ErrorStateClass*): int
+    + evError(me: ErrorStateClass*): int
+    + evOk(me: ErrorStateClass*): int
+    + evWarning(me: ErrorStateClass*): int
+    + exitAction(me: ErrorStateClass*): void
+    + is_in(me: ErrorStateClass*, s: ErrorStatesType): int
+    + getItsLightController(): LightController*
+    + setItsLightController(p: LightController*): void
+    + Create(): ErrorStateClass*
+    + Destroy(me: ErrorStateClass*): void
+}
+
+' ModeStateClass - Concrete AND-state implementation
+class ModeStateClass <<andstate>> {
+    + aSet: StateActionSet
+    + currentState: ModeStatesType
+    + defaultState: ModeStatesType
+    + itsLightController: LightController*
+    --
+    + Init(me: ModeStateClass*): void
+    + Cleanup(me: ModeStateClass*): void
+    + entryAction(me: ModeStateClass*): void
+    + evAbort(me: ModeStateClass*): int
+    + evRun(me: ModeStateClass*): int
+    + evShutDown(me: ModeStateClass*): int
+    + exitAction(me: ModeStateClass*): void
+    + is_in(me: ModeStateClass*, s: ModeStatesType): int
+    + getItsLightController(): LightController*
+    + setItsLightController(p: LightController*): void
+    + Create(): ModeStateClass*
+    + Destroy(me: ModeStateClass*): void
+}
+
+' Main Context class
+class LightController <<main>> {
+    + asList[EMERGENCY_STATE+1]: AndStateList*
+    + currentState: HighLevelLightStates
+    + itsKlaxon: Klaxon*
+    + itsLight: Light*
+    + itsMutex: Mutex*
+    --
+    ' Event Receptors
+    + evEnable(me: LightController*): void
+    + evDisable(me: LightController*): void
+    + reset(me: LightController*): void
+    + evOk(me: LightController*): void
+    + evWarning(me: LightController*): void
+    + evError(me: LightController*): void
+    + evRun(me: LightController*): void
+    + evShutDown(me: LightController*): void
+    + evAbort(me: LightController*): void
+    --
+    ' State Management
+    + Init(me: LightController*): void
+    + Cleanup(me: LightController*): void
+    + enter_OffState(me: LightController*, newState: HighLevelLightStates): void
+    + enter_OnState(me: LightController*, newState: HighLevelLightStates): void
+    + enter_EmergencyState(me: LightController*, newState: HighLevelLightStates): void
+    + exit_OffState(me: LightController*): void
+    + exit_OnState(me: LightController*): void
+    + exit_EmergencyState(me: LightController*): void
+    + enterNestedAndStates(me: LightController*, next: HighLevelLightStates): void
+    + exitNestedAndStates(me: LightController*): void
+    --
+    ' Accessors
+    + getItsKlaxon(): Klaxon*
+    + setItsKlaxon(p: Klaxon*): void
+    + getItsLight(): Light*
+    + setItsLight(p: Light*): void
+    + getItsMutex(): Mutex*
+    + setItsMutex(p: Mutex*): void
+    + Create(): LightController*
+    + Destroy(me: LightController*): void
+}
+
+' Supporting classes
+class Light <<support>> {
+    + isOn: int
+    + color: ColorType
+    + mode: FlashType
+    --
+    + Init(me: Light*): void
+    + turnOn(me: Light*): void
+    + turnOff(me: Light*): void
+    + setColor(me: Light*, color: ColorType): void
+    + setMode(me: Light*, mode: FlashType): void
+    + isOn(): int
+    + getColor(): ColorType
+    + getMode(): FlashType
+    + Create(): Light*
+    + Destroy(me: Light*): void
+}
+
+class Klaxon <<support>> {
+    + isAlarming: int
+    --
+    + Init(me: Klaxon*): void
+    + alarmOn(me: Klaxon*): void
+    + alarmOff(me: Klaxon*): void
+    + isAlarming(): int
+    + Create(): Klaxon*
+    + Destroy(me: Klaxon*): void
+}
+
+class Mutex <<support>> {
+    + locked: int
+    + owner_id: int
+    --
+    + Init(me: Mutex*): void
+    + lock(me: Mutex*): int
+    + release(me: Mutex*): int
+    + isLocked(): int
+    + Create(): Mutex*
+    + Destroy(me: Mutex*): void
+}
+
+' Client class
+class LightControllerClient <<utility>> {
+    + itsLightController: LightController*
+    + itsLight: Light*
+    + itsKlaxon: Klaxon*
+    + itsMutex: Mutex*
+    --
+    + Init(me: LightControllerClient*): void
+    + Cleanup(me: LightControllerClient*): void
+    + runDemo(me: LightControllerClient*): void
+    + Create(): LightControllerClient*
+    + Destroy(me: LightControllerClient*): void
+}
+
+' Relationships
+LightController ||--o{ AndStateList : "asList[states]"
+AndStateList ||--o{ ErrorStateClass : "andStates[regions]"
+ErrorStateClass --|> AbstractAndStateClass
+ModeStateClass --|> AbstractAndStateClass
+ErrorStateClass ||--|| StateActionSet : "aSet"
+ModeStateClass ||--|| StateActionSet : "aSet"
+
+LightController ||--o Light : "itsLight"
+LightController ||--o Klaxon : "itsKlaxon"
+LightController ||--o Mutex : "itsMutex"
+
+ErrorStateClass o--|| LightController : "itsLightController"
+ModeStateClass o--|| LightController : "itsLightController"
+
+LightControllerClient ||--|| LightController : "itsLightController"
+LightControllerClient ||--|| Light : "itsLight"
+LightControllerClient ||--|| Klaxon : "itsKlaxon"
+LightControllerClient ||--|| Mutex : "itsMutex"
+
+StateActionSet ..> ActionPtr0 : "uses"
+StateActionSet ..> ActionPtr1 : "uses"
+
+' Enum relationships
+ErrorStateClass ..> ErrorStatesType : "uses"
+ModeStateClass ..> ModeStatesType : "uses"
+LightController ..> HighLevelLightStates : "uses"
+Light ..> ColorType : "uses"
+Light ..> FlashType : "uses"
+AndStateList ..> On_State_Regions : "uses"
+
+' Notes
+note right of LightController : "Context manages high-level\nstates and delegates events\nto orthogonal regions"
+
+note right of ErrorStateClass : "Implements Error Status\northogonal region:\nOK → WARNING → ERROR"
+
+note right of ModeStateClass : "Implements Mode Status\northogonal region:\nSTARTINGUP → OPERATIONAL\n→ SHUTTINGDOWN"
+
+note bottom of AndStateList : "Container for orthogonal\nregions within a\ncomposite state"
+
+@enduml

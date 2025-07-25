@@ -1,0 +1,50 @@
+Class
+
+A class is really nothing more than a C struct, but what is special about it is that it contains two
+different kinds of features: data (attributes) and behavioral
+
+Objects
+
+Objects are instances of classes, in the same way that a specific variable x (of type int) is an
+instance of its type (int). The same set of operators (such as arithmetic operators) apply to
+all variables of that type, but the specific values of one instance differ from another instance
+(say, y).
+
+Embedded system are created for the the different system( the host). So tools used in the craetion of the embedded system. That tool is crosscompiler. . This is a compiler that
+runs on the host but creates executable code that runs on a different computer and operating
+environment. Many real-time operating systems (RTOSs) provide their own proprietary compilers or provide customizations for open-source compilers such as GCC 
+
+A linker is a program that combines a set of executable codes together into an executable for a
+target. Some operating systems don’t require an explicit link step because the OS loader
+dynamically links the program elements as it loads into memory.The
+linker often relocates the program as well, meaning that the start address is specified during the
+link step and assembly language jump instructions must be updated to reflect the actual starting
+base address
+
+A loader is a tool that loads the object image output from the linking step into the memory of
+the target environment. This may be done via a serial or network link or by burning the
+software image into nonvolatile memory such as Flash or EPROM. As an alternative to loading
+the software image on a target platform, many developers use simulators for the target that
+execute on their host development systems. It is common, for example, to use Z80 or 8051
+simulators running on Windows to begin to run, debug, and test your software even before
+target boards are available.
+
+Integrated Development Environments (IDEs) link together most or all of the tools
+in the embedded tool chain to facilitate and automate the development process. The latest
+industry trend is to host the IDEs in the Eclipse platform4 because of the power of the integrated
+environment and the availability of third-party and open-source plug-ins.
+
+for example:-
+Class Sensor with data elements value, updateFrequency, and
+filterFrequency and operations, getValue(), setValue(v: int), setUpdateFreq
+(r:int), getUpdateFreq(), setFilterFreq(ff: int), and getFilterFreq().
+
+Note : in the embedded system, there should be one instance of the class running. Usually 
+more data centric and server centric have multiple instance.
+
+command to compile the code
+cd "c:\Users\jaiswal\GitLab\repo\EmbeddedSystemDesignPattern\Terminology\SensorExample"
+gcc -o SensorExample.exe Sensor.c SensorHeaderUsage.c
+
+command to execute the code
+.\SensorExample.exe

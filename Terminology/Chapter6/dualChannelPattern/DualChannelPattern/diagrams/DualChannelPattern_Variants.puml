@@ -1,0 +1,159 @@
+@startuml DualChannelPattern_Variants
+
+!theme plain
+
+title Dual Channel Pattern Variants
+
+package "Homogeneous Redundancy Pattern" {
+    class "Channel A" as HA {
+        Same Design
+        Same Implementation
+        Same Hardware
+        ---
+        Protection: Random Faults Only
+        Cost: Low Design, High Recurring
+    }
+    
+    class "Channel B" as HB {
+        Same Design
+        Same Implementation  
+        Same Hardware
+        ---
+        Identical to Channel A
+    }
+    
+    class "Channel Arbiter" as HArbiter {
+        Compare Outputs
+        Switch on Failure
+        Detect Disagreement
+    }
+    
+    HA --> HArbiter
+    HB --> HArbiter
+}
+
+package "Heterogeneous Redundancy Pattern" {
+    class "Channel A" as HetA {
+        Design A
+        Implementation A
+        Hardware Set A
+        ---
+        Protection: Random + Systematic
+        Cost: High Design, High Recurring
+    }
+    
+    class "Channel B" as HetB {
+        Design B
+        Implementation B
+        Hardware Set B
+        ---
+        Different from Channel A
+    }
+    
+    class "Channel Manager" as HetManager {
+        Cross-Validate
+        Switch on Fault
+        Diverse Checking
+    }
+    
+    HetA --> HetManager
+    HetB --> HetManager
+}
+
+package "Triple Modular Redundancy (TMR)" {
+    class "Channel 1" as TMR1 {
+        Usually Identical
+        Voter Input 1
+    }
+    
+    class "Channel 2" as TMR2 {
+        Usually Identical  
+        Voter Input 2
+    }
+    
+    class "Channel 3" as TMR3 {
+        Usually Identical
+        Voter Input 3
+    }
+    
+    class "Majority Voter" as Voter {
+        2-out-of-3 Logic
+        Reject Outlier
+        Fail-On Design
+        ---
+        Cost: Very High Recurring
+    }
+    
+    TMR1 --> Voter
+    TMR2 --> Voter  
+    TMR3 --> Voter
+}
+
+package "Sanity-Check Pattern" {
+    class "Primary Channel" as SCP {
+        Full Processing
+        High Fidelity
+        Main Actuator
+    }
+    
+    class "Sanity Check Channel" as SCC {
+        Lightweight Check
+        Low Fidelity
+        Output Validation
+        ---
+        Cost: Low Recurring, Medium Design
+    }
+    
+    class "Safety Controller" as SC {
+        Compare Outputs
+        Fault-Safe on Disagreement
+        Cannot Continue on Fault
+    }
+    
+    SCP --> SC
+    SCC --> SC
+}
+
+package "Monitor-Actuator Pattern" {
+    class "Actuator Channel" as MAC {
+        Primary Service
+        Physical Actuation
+        Normal Operation
+    }
+    
+    class "Monitor Channel" as MC {
+        Independent Sensors
+        Physical Result Check
+        High Fidelity Monitoring
+        ---
+        Cost: Medium Recurring, Medium Design
+    }
+    
+    class "Safety Manager" as SM {
+        Physical Validation
+        Independent Sensing
+        Fault-Safe on Detection
+    }
+    
+    MAC --> SM
+    MC --> SM
+}
+
+note as CostNote
+    **Cost Comparison:**
+    • Sanity-Check: Lowest cost, basic protection
+    • Monitor-Actuator: Medium cost, good protection  
+    • Homogeneous: High recurring, low design
+    • Heterogeneous: High design, high recurring
+    • TMR: Highest cost, maximum protection
+end note
+
+note as ProtectionNote
+    **Fault Protection:**
+    • Random Faults: Hardware failures, EMI
+    • Systematic Faults: Design errors, software bugs
+    • Single-Point Faults: Isolated to one channel
+    • Common-Mode Faults: Affect multiple channels
+end note
+
+@enduml

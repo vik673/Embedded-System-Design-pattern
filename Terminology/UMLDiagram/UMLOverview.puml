@@ -1,0 +1,142 @@
+@startuml UMLOverview
+!theme plain
+title UML Diagram Types and Components Overview
+
+package "Structural Diagrams" {
+  
+  class "Class Diagram" as CD {
+    +Shows system structure
+    +Displays classes, objects, relations
+    --
+    Elements:
+    • Classes
+    • Interfaces  
+    • Attributes
+    • Operations
+    • Associations
+    • Generalizations
+    • Dependencies
+  }
+  
+  note right of CD : Class diagrams show the\nstatic structure of the system\nincluding relationships\nbetween classes
+}
+
+package "Behavioral Diagrams" {
+  
+  class "Sequence Diagram" as SD {
+    +Shows message sequences
+    +Time-ordered interactions
+    --
+    Elements:
+    • Lifelines
+    • Messages (sync/async)
+    • Activation boxes
+    • Condition marks
+    • Comments
+  }
+  
+  class "State Diagram" as StD {
+    +Shows state-based behavior
+    +Event-driven transitions
+    --
+    Elements:
+    • States (simple/composite)
+    • Transitions
+    • Events & Guards
+    • Actions (entry/exit/transition)
+    • Pseudostates
+  }
+  
+  note right of SD : Sequence diagrams show\nhow objects interact\nover time through\nmessage exchanges
+  
+  note right of StD : State diagrams model\nthe dynamic behavior\nof individual objects\nresponding to events
+}
+
+package "UML Relations" {
+  
+  class Association {
+    +Navigable connection
+    +Has multiplicity
+    +Implemented as pointers
+  }
+  
+  class Generalization {
+    +Is-a relationship
+    +Inheritance
+    +Feature inheritance
+  }
+  
+  class Realization {
+    +Interface implementation
+    +Contract fulfillment
+  }
+  
+  class Composition {
+    +Strong whole-part
+    +Lifecycle dependency
+    +Filled diamond
+  }
+  
+  class Aggregation {
+    +Weak whole-part
+    +No lifecycle dependency
+    +Empty diamond
+  }
+  
+  class Dependency {
+    +Uses relationship
+    +Compilation dependency
+    +Dashed arrow
+  }
+}
+
+package "State Machine Elements" {
+  
+  class State {
+    +Condition of instance
+    +Entry/exit actions
+    +Internal transitions
+  }
+  
+  class "Composite State" as CS {
+    +Contains nested states
+    +OR-states or AND-states
+  }
+  
+  class Transition {
+    +Event trigger
+    +Guard condition
+    +Action list
+  }
+  
+  class "Pseudostate" as PS {
+    +Special semantics
+    +Default, conditional, fork, join
+    +Terminal pseudostate
+  }
+  
+  State ||--|| CS : can be
+  State --> Transition : has outgoing
+  Transition --> State : leads to
+  PS --> Transition : initiates
+}
+
+' Relationships between diagram types
+CD ..> SD : "classes become\nlifelines"
+CD ..> StD : "classes have\nstate machines"
+SD ..> StD : "messages trigger\nstate transitions"
+
+' Show how relations are used
+CD *-- Association
+CD *-- Generalization  
+CD *-- Realization
+CD *-- Composition
+CD *-- Aggregation
+CD *-- Dependency
+
+' Show state machine composition
+StD *-- State
+StD *-- Transition
+StD *-- PS
+
+@enduml

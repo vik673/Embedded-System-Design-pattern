@@ -1,0 +1,136 @@
+@startuml StateDiagram
+!theme plain
+title UML State Diagram - Sensor Device State Machine
+
+[*] --> INITIALIZING : power_on
+
+state INITIALIZING {
+  INITIALIZING : entry / initialize_hardware()
+  INITIALIZING : do / run_self_test()
+  INITIALIZING : exit / set_ready_flag()
+}
+
+INITIALIZING --> READY : initialization_complete [self_test_passed] / notify_ready()
+INITIALIZING --> ERROR : initialization_failed / log_error()
+
+state READY {
+  READY : entry / enable_interrupts()
+  READY : do / monitor_status()
+  
+  state IDLE {
+    IDLE : entry / power_down_sensors()
+  }
+  
+  state ACTIVE {
+    ACTIVE : entry / power_up_sensors()
+    ACTIVE : do / continuous_monitoring()
+    
+    state READING {
+      READING : entry / start_adc_conversion()
+      READING : do / wait_for_conversion()
+      READING : exit / store_reading()
+    }
+    
+    state PROCESSING {
+      PROCESSING : entry / validate_data()
+      PROCESSING : do / apply_calibration()
+      PROCESSING : exit / update_output()
+    }
+    
+    READING --> PROCESSING : conversion_complete
+    PROCESSING --> READING : next_sample_needed
+  }
+  
+  [*] --> IDLE
+  IDLE --> ACTIVE : start_monitoring
+  ACTIVE --> IDLE : stop_monitoring / save_data()
+  
+  ' Internal transition (no state change)
+  ACTIVE : status_request / send_status()
+}
+
+READY --> MAINTENANCE : maintenance_request [system_stable] / prepare_maintenance()
+READY --> ERROR : hardware_failure / log_failure()
+
+state MAINTENANCE {
+  MAINTENANCE : entry / disable_operations()
+  MAINTENANCE : do / run_diagnostics()
+  
+  state CALIBRATING {
+    CALIBRATING : entry / start_calibration()
+    CALIBRATING : do / adjust_parameters()
+  }
+  
+  state TESTING {
+    TESTING : entry / run_extended_test()
+    TESTING : do / verify_functionality()
+  }
+  
+  [*] --> CALIBRATING
+  CALIBRATING --> TESTING : calibration_complete
+  TESTING --> [*] : test_passed
+}
+
+MAINTENANCE --> READY : maintenance_complete [all_tests_passed] / restore_operations()
+MAINTENANCE --> ERROR : maintenance_failed / report_error()
+
+state ERROR {
+  ERROR : entry / disable_all_operations()
+  ERROR : do / flash_error_led()
+  ERROR : exit / clear_error_flags()
+  
+  ' Conditional pseudostate example
+  state error_choice <<choice>>
+  ERROR --> error_choice : diagnose_error
+  
+  error_choice --> MAINTENANCE : [recoverable_error] / schedule_maintenance()
+  error_choice --> SHUTDOWN : [critical_error] / emergency_shutdown()
+  error_choice --> ERROR : [else] / continue_error_state()
+}
+
+ERROR --> READY : error_cleared [manual_reset] / restart_system()
+
+state SHUTDOWN {
+  SHUTDOWN : entry / save_critical_data()
+  SHUTDOWN : do / shutdown_sequence()
+  SHUTDOWN : exit / power_off()
+}
+
+SHUTDOWN --> [*] : shutdown_complete
+
+' Fork and Join example for composite state
+state ADVANCED_MONITORING {
+  --
+  state DATA_COLLECTION {
+    state SENSOR_1_ACTIVE
+    state SENSOR_2_ACTIVE
+  }
+  --
+  state COMMUNICATION {
+    state WIFI_CONNECTED
+    state BLUETOOTH_ACTIVE
+  }
+}
+
+state fork_state <<fork>>
+state join_state <<join>>
+
+READY --> fork_state : enable_advanced_mode
+fork_state --> DATA_COLLECTION
+fork_state --> COMMUNICATION
+
+DATA_COLLECTION --> join_state
+COMMUNICATION --> join_state
+join_state --> READY : disable_advanced_mode
+
+' Terminal state
+state DECOMMISSIONED <<end>>
+ERROR --> DECOMMISSIONED : permanent_failure / mark_device_failed()
+
+note right of INITIALIZING : Entry and exit actions\nare executed on state\ntransitions
+
+note bottom of READY : Composite state with\nnested OR-states (IDLE/ACTIVE)\nand internal transitions
+
+note left of ADVANCED_MONITORING : Composite state with\nAND-states (concurrent regions)\nusing fork and join
+
+@enduml

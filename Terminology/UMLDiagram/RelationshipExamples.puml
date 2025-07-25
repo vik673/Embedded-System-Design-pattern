@@ -1,0 +1,162 @@
+@startuml RelationshipExamples
+!theme plain
+title UML Relationship Types - Detailed Examples
+
+' Association Example
+class SensorController {
+  -sensors : SensorClass[]
+  +manageSensors() : void
+}
+
+class SensorClass {
+  -sensorId : int
+  +getData() : float
+}
+
+' Composition Example  
+class Engine {
+  -cylinders : Cylinder[]
+  +start() : void
+  +stop() : void
+}
+
+class Cylinder {
+  -volume : float
+  +fire() : void
+}
+
+' Aggregation Example
+class Team {
+  -players : Player[]
+  +addPlayer(p : Player) : void
+}
+
+class Player {
+  -name : string
+  +play() : void
+}
+
+' Generalization Example
+abstract class Vehicle {
+  #speed : float
+  +{abstract} move() : void
+}
+
+class Car {
+  -doors : int
+  +move() : void
+  +openDoor() : void
+}
+
+class Motorcycle {
+  -hasWindshield : bool
+  +move() : void
+}
+
+' Realization Example
+interface Drawable {
+  +draw() : void
+  +erase() : void
+}
+
+class Circle {
+  -radius : float
+  +draw() : void
+  +erase() : void
+  +getArea() : float
+}
+
+class Rectangle {
+  -width : float
+  -height : float
+  +draw() : void
+  +erase() : void
+  +getArea() : float
+}
+
+' Dependency Example
+class DataProcessor {
+  +processData(data : DataSet) : Result
+}
+
+class DataSet {
+  +values : float[]
+  +size : int
+}
+
+class MathLibrary {
+  +{static} calculateMean(values : float[]) : float
+  +{static} calculateStdDev(values : float[]) : float
+}
+
+' Type Example
+enum Priority {
+  LOW
+  MEDIUM  
+  HIGH
+  CRITICAL
+}
+
+class Task {
+  -priority : Priority
+  -description : string
+}
+
+' Relationships with labels and multiplicities
+
+' Association (1 to many)
+SensorController "1" -- "0..*" SensorClass : manages >
+note on link : Association:\nNavigable connection\nImplemented as pointer array
+
+' Composition (Engine owns Cylinders)
+Engine *-- "4..8" Cylinder : contains
+note on link : Composition:\nStrong ownership\nEngine creates/destroys cylinders
+
+' Aggregation (Team has Players)
+Team o-- "1..11" Player : has members
+note on link : Aggregation:\nWeak ownership\nPlayers exist independently
+
+' Generalization (Inheritance)
+Vehicle <|-- Car
+Vehicle <|-- Motorcycle
+note on link : Generalization:\nIs-a relationship\nInheritance of features
+
+' Realization (Interface implementation)
+Drawable <|.. Circle
+Drawable <|.. Rectangle
+note on link : Realization:\nContract implementation\nInterface fulfillment
+
+' Dependency (Usage)
+DataProcessor ..> MathLibrary : <<uses>>
+DataProcessor ..> DataSet : <<parameter>>
+note on link : Dependency:\nUsage relationship\nCompile-time dependency
+
+' Simple association for enum
+Task --> Priority : has
+
+' Additional notation examples
+class ComplexClass {
+  ' Visibility markers
+  +publicAttribute : string
+  #protectedAttribute : int
+  -privateAttribute : float
+  ~packageAttribute : bool
+  
+  ' Method signatures
+  +ComplexClass(param : string)
+  +publicMethod() : void
+  #protectedMethod(x : int) : bool
+  -privateMethod() : float
+  +{static} staticMethod() : string
+  +{abstract} abstractMethod() : void
+}
+
+note right of ComplexClass : Visibility Notation:\n+ public\n# protected\n- private\n~ package\n\nStatic: {static}\nAbstract: {abstract}
+
+' Multiplicity examples
+class MultiplicityExamples {
+}
+
+note top of MultiplicityExamples : Multiplicity Examples:\n1 - exactly one\n0..1 - zero or one\n* - zero or more\n0..* - zero or more\n1..* - one or more\n2..5 - two to five\n5 - exactly five
+
+@enduml

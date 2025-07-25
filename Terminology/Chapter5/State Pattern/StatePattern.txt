@@ -1,0 +1,971 @@
+State Pattern
+This, perhaps poorly named, pattern comes from Design Patterns: Elements of Reusable Object
+Oriented Software by Gamma, et. al.4 It provides an implementation strategy that can be
+optimized either for data memory at the expense of run-time performance or vice versa. It is
+applicable for sparse and dense state spaces alike and has relatively low initial set-up costs.
+However, it makes rather heavy use of dynamic memory. It is simple to implement in C++
+because of its use of polymorphism and therefore somewhat more complex in C.
+5.6.1 Abstract
+The State Pattern implements a state machine through the creation of state objects, one per
+state. The class owning the state machine, known as the Context, maintains a list of these
+objects with an internal variable that identifies which of these is the current state. All event
+receptors are passed to the currently active state object.
+5.6.2 Problem
+This pattern provides a means for implementing state machines that simplifies the stateful class
+by creating a set of objects, each of which implements the behavior of a single state. It makes
+the states explicit, rather easy to modify, and enables the extension of the state space by adding
+new state objects as needed.
+5.6.3 Pattern Structure
+Figure 5-18 shows the structure for the pattern for the parsing example. Note that the states are
+all implemented as different classes, and each of these classes provides a function for each of
+the events (even if the implementation is empty). The Context passes the control off to the
+current state (implemented as the currentState index into the stateList array). Because
+the actions are almost always implemented in terms of manipulating variables and invoking
+functions of the Context, each state class requires a pointer back to the Context. In a fashion
+similar to the State Table Pattern, the pattern is made much easier if you flatten the state
+machine (i.e., eliminate nesting).
+Collaboration Roles
+5.6.4.1 ActionPtr0
+This type is a pointer to a function that has 0 parameters, other than the obligatory me object
+pointer, and returns an int. The value of the return is either 0 (event discarded) or 1 (event
+handled).
+5.6.4.2 ActionPtr1
+This type is a pointer to a function that takes 1 parameter of type char in addition to the
+obligatory me object pointer and returns an int. The value of the return is either 0 (event
+discarded) or 1 (event handled).
+5.6.4.3 Context
+The Context is the class that owns the state machine and has the data manipulated by the
+actions. It implements a stateList as an array of pointers to the state classes and a
+currentState variable that indicates which of the current states is active. Since the structure
+of the state classes is all the same (in terms of the struct), the elements of the stateList array can
+be typed as pointers to one of them.
+The Context provides a set of event handlers similar to the Multiple Event Receptor Pattern.
+The implementation of each event handler delegates the event handling to the current state object,
+which is free to act on, or discard the event as appropriate. If it handles the event, the state object
+will update the Context’s currentState variable; once the event handler returns (and if it
+handled the event), the Context will execute the entry actions of the new state.
+During initialization, the Context creates each of the state objects, puts it in the stateList,
+and then enters the initial state.
+5.6.4.4 Mutex
+The Mutex ensures the deterministic run-to-completion semantics of transitions by preventing
+other clients from interrupting the state machine execution of an action sequence. This is
+accomplished by locking the semaphore before the event is processed and releasing it once the
+transition processing is complete.
+5.6.4.5 State Classes
+The state classes each implement one of the states of the Context and implements all of the
+event handlers. The event handlers return 1 if they handled the event and 0 if they discarded the
+event. If it handles the event, the event handler is expected to execute the exit actions of the
+current state, then the transition actions, and finally set the Context’s currentState to the
+new state. The entry actions of the new state will be executed by the Context after the return
+of the state object’s event handler. The state classes are:
+• NoNumberState
+• GN_ProcessingFractionState
+• GN_ProcessingWholeState
+Each event handler may have additional helper functions invoked by its event handlers,
+particularly for the transition actions, in addition to the entry and exit actions.
+Each state object has an instance of the StateActionSet class that implements function pointers
+to each of the event handlers. During the state object’s initialization, these function pointers are set
+to point to the appropriate event handler functions of the state class. In this way, polymorphism
+is addressed to support general event handling regardless of which is the current state.
+The actions of each state class is normally a manipulation of the values owned by the Context.
+For this reason, each state class has an association (pointer) back to the Context to access
+those values. An alternative implementation, discussed later, is to pass the Context’s me
+pointer to each action to make the state classes truly context-free.
+5.6.4.6 StateActionSet
+This class is the key to implementing the required polymorphism. Each state class owns its own
+instance of this class in a variable called aSet. Each event handler (and the entry and exit
+actions) have a function pointer that will be dereferenced to invoke the event handler for the
+current state. In this case, the handlers are either of type ActionPtr0 (no parameters other
+than the me pointer) and ActionPtr1 (one char parameter plus the me pointer). To implement
+events with other parameter lists, new action pointer types must be created.
+This class has no behavior other than an initializer that sets all the pointers to NULL initially. It
+is expected that the owner of each instance of the StateActionSet will set the function
+pointers to access the correct functions.
+5.6.4.7 TSTATETYPE
+TSTATE is an enumerated type of the high level states. Note that the nested state machine is
+flattened to remove nesting. This greatly simplifies the state pattern implementation. The
+enumerated values for this type are:
+• NULL_STATE
+• NONUMBER_STATE
+• GN_PROCESSINGWHOLEPART_STATE
+• GN_PROCESSINGFRACTIONALPART_STATE
+Where the GN_ prefix is a reminder that the last two states were nested states of the
+GotNumber state.
+5.6.5 Consequences
+This pattern localizes the behavior specific to a state to a single object, simplifying and
+encapsulating state-specific behavior. This means new states can be added by adding a new
+state class. New events are more work to add, since they must be at least added to the
+StateActionSet and usually to each state class as well. The State Pattern makes the event
+transitions explicit by providing an event handler for each incoming event in each state class.
+This pattern uses more memory than a state table but simplifies the implementation by
+distributing the complexity among the various state objects.
+Another advantage of this pattern is that with a small change in implementation, it is possible to
+share state objects among multiple instances of the Context class – for example, if the system
+has multiple sensors all typed by the same class. This makes it very lightweight in terms of
+memory usage in those cases.
+5.6.6 Implementation Strategies
+This pattern is straightforward in C++ but rather more complex in C because it uses inheritance and
+polymorphism. In the implementation shown here, polymorphism is implemented with a combination of two techniques. First, all the state classes implement the same event handling interface; that is
+each state implements an event handler for all events even if the event is discarded. The event
+handlers return a 1 if the event was handled and 0 if the event was discarded. This is necessary
+because the Context needs to know if it should execute the entry actions of the new state.
+The StateActionSet class then provided the polymorphic dispatch of the functions by
+providing a set of pointers for the event handlers and the entry and exit handlers. Each state
+class implemented the event handlers appropriately and then put a function pointer in its
+StateActionSet instance. The Context class uses the currentState variable as the
+index to dereference the pointer to the state that is “current,” and further dereferences the state’s
+StateActionSet to invoke the appropriate event handler.
+Two primary implementation variants occur around whether to create all the state objects at
+once and simply switch among them based on the currentState variable of the Context, or
+to dynamically create and destroy the instances of the different state. In general, if the system
+changes state only infrequently, then memory can be saved by only creating the state as it is
+needed and destroying it when the Context is no longer in that state. If the state changes are
+frequent, then this approach will likely impose a significant performance penalty, so at the cost
+of some additional memory, it is best to keep all the state instances in memory.
+An interesting property of the pattern is that the state objects themselves have no state context other
+than the itsContext pointer. This means that the state objects can be shared by multiple instances
+of the Context class. This might occur if, for example, the system has many sensor instances all
+typed by the same Context class. In this case the State Pattern can implement shared state objects,
+resulting in significant memory savings. To decontextualize the state classes, remove the class’s
+itsContext pointer and add a Context pointer (that’s the Context’s me pointer) to each event
+handler parameter list (and also to the entry and exit actions). When this is done, each state class is
+completely independent of its Context.
+5.6.7 Related Patterns
+The State Pattern implements a separate event receptor for each event, similar to the Single
+Event Receptor Pattern. The State Pattern is useful for more complex state machines because
+the event handling is decomposed across different state objects. On the other hand,
+implementation of nested states is somewhat simpler in the case of the Single Event Receptor
+Pattern.
+The State Table Pattern is similar in usage to the State Pattern, in that both are greatly simplified
+by flattening the state hierarchy. However, the former cannot easily share implementation so
+when the system has multiple instances of the Context, the latter may be more memory
+efficient. Both patterns have good performance.
+5.6.8 Example
+This section shows the implementation of the various elements of this pattern for the tokenizer
+example in Figure 5-12. Code Listing 5-17 shows the common types used by the other
+elements.
+#ifndef StatePattern_H
+
+#define StatePattern_H
+
+struct Context;
+
+struct GN_ProcessingFractionState;
+
+struct GN_ProcessingWholeState;
+
+struct Mutex;
+
+struct NoNumberState;
+
+struct SPClient;
+
+struct StateActionSet;
+
+struct StatePatternBulder;
+
+typedef enum TSTATETYPE {
+
+NULL_STATE,
+
+NONUMBER_STATE,
+
+GN_PROCESSINGWHOLEPART_STATE,
+
+GN_PROCESSINGFRACTIONALPART_STATE
+
+} TSTATETYPE;
+typedef int (*ActionPtr0)(void*);
+
+typedef int (*ActionPtr1)(void*, char);
+
+int digit(char c); /* returns c-‘0’ */
+#endif
+Code Listing 5-17: StatePattern.h
+Next we have the Context code in Code Listing 5-18 and Code Listing 5-19.
+#ifndef Context_H
+
+#define Context_H
+
+#include "StatePattern.h"
+
+#include "GN_ProcessingFractionState.h"
+ 
+ #include "GN_ProcessingWholeState.h"
+
+#include "NoNumberState.h"
+
+struct Mutex;
+typedef struct Context Context;
+struct Context {
+
+char ch;
+
+TSTATETYPE currentState;
+
+double result;
+
+struct NoNumberState*
+
+stateList[GN_PROCESSINGFRACTIONALPART_STATE+1];
+
+double tensPlace;
+
+struct Mutex* itsMutex;
+
+};
+/* Constructors and destructors:*/
+
+void Context_Init(Context* const me);
+
+void Context_Cleanup(Context* const me);
+
+/* Operations */
+
+void Context_evDigit(Context* const me, char c);
+
+void Context_evDot(Context* const me);
+
+void Context_evEndOfString(Context* const me);
+
+void Context_evWhiteSpace(Context* const me);
+
+struct Mutex* Context_getItsMutex(const Context* const me);
+
+void Context_setItsMutex(Context* const me, struct Mutex* p_Mutex);
+
+Context * Context_Create(void);
+
+void Context_Destroy(Context* const me);
+
+#endif
+Code Listing 5-18: Context.h
+#include "Context.h"
+
+#include "Mutex.h"
+
+static void cleanUpRelations(Context* const me);
+void Context_Init(Context* const me) {
+
+me->ch = 'x';
+
+me->currentState = NULL_STATE;
+
+me->result = 0.0;
+
+me->tensPlace = 10.0;
+
+me->itsMutex = NULL;
+
+me->stateList[NULL_STATE] = NULL;
+
+/* set up state list */
+
+me->stateList[NONUMBER_STATE] = NoNumberState_Create();
+
+me->stateList[NONUMBER_STATE]->itsContext = me;
+
+me->stateList[GN_PROCESSINGWHOLEPART_STATE] = (NoNumberState*) GN_ProcessingWhole
+
+State_Create();
+me->stateList[GN_PROCESSINGWHOLEPART_STATE]->itsContext = me;
+me->stateList[GN_PROCESSINGFRACTIONALPART_STATE] = (NoNumberState*) GN_Processing
+FractionState_Create();
+me->stateList[GN_PROCESSINGFRACTIONALPART_STATE]->itsContext = me;
+/* enter starting state */
+me->stateList[NONUMBER_STATE]->aSet.entryAction(me->stateList[NONUMBER_STATE]);
+}
+void Context_Cleanup(Context* const me) {
+NoNumberState_Destroy(me->stateList[NONUMBER_STATE]);
+GN_ProcessingWholeState_Destroy((GN_ProcessingWholeState *)me->stateList
+[GN_PROCESSINGWHOLEPART_STATE]);
+GN_ProcessingFractionState_Destroy((GN_ProcessingFractionState *)me->stateList
+[GN_PROCESSINGFRACTIONALPART_STATE]);
+cleanUpRelations(me);
+}
+void Context_evDigit(Context* const me, char c) {
+Mutex_lock(me->itsMutex);
+/* this call does the entry and transition actions */
+/* and updates the currentState variable */
+if (me->stateList[me->currentState]->aSet.evDigitHandler(me->stateList[me->currentState], c))
+me->stateList[me->currentState]->aSet.entryAction(me->stateList
+[me->currentState]);
+Mutex_release(me->itsMutex);
+}
+void Context_evDot(Context* const me) {
+Mutex_lock(me->itsMutex);
+/* this call does the entry and transition actions */
+/* and updates the currentState variable */
+if (me->stateList[me->currentState]->aSet.evDotHandler(me->stateList
+[me->currentState]))
+me->stateList[me->currentState]->aSet.entryAction(me->stateList
+[me->currentState]);
+Mutex_release(me->itsMutex);
+}
+void Context_evEndOfString(Context* const me) {
+Mutex_lock(me->itsMutex);
+/* this call does the entry and transition actions */
+/* and updates the currentState variable */
+if (me->stateList[me->currentState]->aSet.evEOSHandler(me->stateList
+[me->currentState]))
+me->stateList[me->currentState]->aSet.entryAction(me->stateList
+[me->currentState]);
+Mutex_release(me->itsMutex);
+}
+void Context_evWhiteSpace(Context* const me) {
+Mutex_lock(me->itsMutex);
+/* this call does the entry and transition actions */
+
+/* and updates the currentState variable */
+
+if (me->stateList[me->currentState]->aSet.evWSHandler(me->stateList
+
+[me->currentState]))
+
+me->stateList[me->currentState]->aSet.entryAction(me->stateList
+
+[me->currentState]);
+
+Mutex_release(me->itsMutex);
+
+}
+
+struct Mutex* Context_getItsMutex(const Context* const me) {
+
+return (struct Mutex*)me->itsMutex;
+
+}
+
+void Context_setItsMutex(Context* const me, struct Mutex* p_Mutex) {
+
+me->itsMutex = p_Mutex;
+
+}
+
+Context * Context_Create(void) {
+
+Context* me = (Context *) malloc(sizeof(Context));
+
+if(me!=NULL)
+
+Context_Init(me);
+
+return me;
+
+}
+
+void Context_Destroy(Context* const me) {
+
+if(me!=NULL)
+
+Context_Cleanup(me);
+
+free(me);
+
+}
+
+static void cleanUpRelations(Context* const me) {
+
+if(me->itsMutex != NULL)
+
+me->itsMutex = NULL;
+
+}
+
+Code Listing 5-19: Context.c
+The code for the StateActionSet is straightforward as we see in Code Listing 5-20 and
+Code Listing 5-21.
+#ifndef StateActionSet_H
+
+#define StateActionSet_H
+
+#include "StatePattern.h"
+typedef struct StateActionSet StateActionSet;
+struct StateActionSet {
+
+ActionPtr0 entryAction;
+
+ActionPtr1 evDigitHandler;
+
+ActionPtr0 evDotHandler;
+
+ActionPtr0 evEOSHandler;
+ 
+ ActionPtr0 evWSHandler;
+
+ActionPtr0 exitAction;
+
+};
+
+/* Constructors and destructors:*/
+
+void StateActionSet_Init(StateActionSet* const me);
+
+void StateActionSet_Cleanup(StateActionSet* const me);
+
+StateActionSet * StateActionSet_Create(void);
+
+void StateActionSet_Destroy(StateActionSet* const me);
+
+#endif
+Code Listing 5-20: StateActionSet.h
+#include "StateActionSet.h"
+void StateActionSet_Init(StateActionSet* const me) {
+
+me->entryAction = NULL;
+
+me->evDigitHandler = NULL;
+
+me->evDotHandler = NULL;
+
+me->evEOSHandler = NULL;
+
+me->evWSHandler = NULL;
+
+me->exitAction = NULL;
+
+}
+void StateActionSet_Cleanup(StateActionSet* const me) {
+
+}
+
+StateActionSet * StateActionSet_Create(void) {
+
+StateActionSet* me = (StateActionSet *)
+
+malloc(sizeof(StateActionSet));
+
+if(me!=NULL)
+
+StateActionSet_Init(me);
+
+return me;
+
+}
+
+void StateActionSet_Destroy(StateActionSet* const me) {
+
+if(me!=NULL)
+
+StateActionSet_Cleanup(me);
+
+free(me);
+
+}
+
+Code Listing 5-21: StateActionSet.c
+The NoNumberState is the first state class. Its implementation is in Code Listing 5-22 and
+Code Listing 5-23.
+#ifndef NoNumberState_H
+
+#define NoNumberState_H
+
+#include "StatePattern.h"
+
+#include "StateActionSet.h"
+ 
+ struct Context;
+typedef struct NoNumberState NoNumberState;
+struct NoNumberState {
+
+struct StateActionSet aSet;
+
+struct Context* itsContext;
+
+};
+/* Constructors and destructors:*/
+
+void NoNumberState_Init(NoNumberState* const me);
+
+void NoNumberState_Cleanup(NoNumberState* const me);
+
+/* Operations */
+
+void NoNumberState_NoNum2GN(NoNumberState* const me, char c);
+
+void NoNumberState_entryAction(NoNumberState* const me);
+
+int NoNumberState_evDigit(NoNumberState* const me, char c);
+
+int NoNumberState_evDot(NoNumberState* const me);
+
+int NoNumberState_evEndOfString(NoNumberState* const me);
+
+int NoNumberState_evWhiteSpace(NoNumberState* const me);
+
+void NoNumberState_exitAction(NoNumberState* const me);
+
+struct Context* NoNumberState_getItsContext(const NoNumberState* const me);
+void NoNumberState_setItsContext(NoNumberState* const me, struct Context* p_Context);
+NoNumberState * NoNumberState_Create(void);
+void NoNumberState_Destroy(NoNumberState* const me);
+#endif
+Code Listing 5-22: NoNumberState.h
+#include "NoNumberState.h"
+
+#include "Context.h"
+
+#include <stdio.h>
+
+static void cleanUpRelations(NoNumberState* const me);
+void NoNumberState_Init(NoNumberState* const me) {
+
+{
+
+StateActionSet_Init(&(me->aSet));
+
+}
+
+me->itsContext = NULL;
+
+/* set up the aSet function pointers */
+
+/* remember that the initializer for the StateActionSet */
+
+/* sets all pointers to NULL as the default */
+
+me->aSet.evDigitHandler = (ActionPtr1) NoNumberState_evDigit;
+
+me->aSet.evDotHandler = (ActionPtr0) NoNumberState_evDot;
+
+me->aSet.evWSHandler = (ActionPtr0) NoNumberState_evWhiteSpace;
+
+me->aSet.evEOSHandler = (ActionPtr0) NoNumberState_evEndOfString;
+
+me->aSet.entryAction = (ActionPtr0) NoNumberState_entryAction;
+
+me->aSet.exitAction = (ActionPtr0) NoNumberState_exitAction;
+
+}
+void NoNumberState_Cleanup(NoNumberState* const me) {
+cleanUpRelations(me);
+}
+void NoNumberState_NoNum2GN(NoNumberState* const me, char c) {
+me->itsContext->ch = c;
+me->itsContext->tensPlace = 10.0;
+}
+void NoNumberState_entryAction(NoNumberState* const me) {
+me->itsContext->result = 0.0;
+}
+int NoNumberState_evDigit(NoNumberState* const me, char c) {
+NoNumberState_exitAction(me);
+NoNumberState_NoNum2GN(me, c); /* transition action */
+/* set new state */
+me->itsContext->currentState = GN_PROCESSINGWHOLEPART_STATE;
+return 1; /* processed event */
+}
+int NoNumberState_evDot(NoNumberState* const me) {
+return 0; /* discarded event */
+}
+int NoNumberState_evEndOfString(NoNumberState* const me) {
+return 0; /* discarded event */
+}
+int NoNumberState_evWhiteSpace(NoNumberState* const me) {
+return 0; /* discarded event */
+}
+void NoNumberState_exitAction(NoNumberState* const me) {
+}
+struct Context* NoNumberState_getItsContext(const NoNumberState* const me) {
+return (struct Context*)me->itsContext;
+}
+void NoNumberState_setItsContext(NoNumberState* const me, struct Context* p_Context) {
+me->itsContext = p_Context;
+}
+NoNumberState * NoNumberState_Create(void) {
+NoNumberState* me = (NoNumberState *)
+malloc(sizeof(NoNumberState));
+if(me!=NULL)
+NoNumberState_Init(me);
+return me;
+}
+void NoNumberState_Destroy(NoNumberState* const me) {
+if(me!=NULL)
+NoNumberState_Cleanup(me);
+free(me);
+}
+static void cleanUpRelations(NoNumberState* const me) {
+
+if(me->itsContext != NULL)
+
+me->itsContext = NULL;
+
+}
+
+Code Listing 5-23: NoNumberState.c
+The next state class is GN_ProcessingWholeState. Its implementation is in Code Listing 5-24
+and Code Listing 5-25.
+#ifndef GN_ProcessingWholeState_H
+
+#define GN_ProcessingWholeState_H
+
+#include "StatePattern.h"
+
+#include "StateActionSet.h"
+
+struct Context;
+typedef struct GN_ProcessingWholeState GN_ProcessingWholeState;
+struct GN_ProcessingWholeState {
+
+struct StateActionSet aSet;
+
+struct Context* itsContext;
+
+};
+/* Constructors and destructors:*/
+
+void GN_ProcessingWholeState_Init(GN_ProcessingWholeState* const me);
+
+void GN_ProcessingWholeState_Cleanup(GN_ProcessingWholeState* const me);
+
+/* Operations */
+
+void GN_ProcessingWholeState_entryAction(GN_ProcessingWholeState* const me);
+
+int GN_ProcessingWholeState_evDigit(GN_ProcessingWholeState* const me, char c);
+
+int GN_ProcessingWholeState_evDot(GN_ProcessingWholeState* const me);
+
+int
+
+GN_ProcessingWholeState_evEndOfString(GN_ProcessingWholeState* const me);
+
+int
+
+GN_ProcessingWholeState_evWhiteSpace(GN_ProcessingWholeState* const me);
+
+void GN_ProcessingWholeState_exitAction(GN_ProcessingWholeState* const me);
+
+void GN_ProcessingWholeState_printResult(GN_ProcessingWholeState* const me);
+
+struct Context* GN_ProcessingWholeState_getItsContext(const GN_ProcessingWholeState*
+const me);
+void
+GN_ProcessingWholeState_setItsContext(GN_ProcessingWholeState* const me, struct Context* p_Context);
+GN_ProcessingWholeState * GN_ProcessingWholeState_Create(void);
+
+void GN_ProcessingWholeState_Destroy(GN_ProcessingWholeState* const me);
+
+#endif
+Code Listing 5-24: GN_ProcessingWholeState.h
+#include "GN_ProcessingWholeState.h"
+#include "Context.h"
+static void cleanUpRelations(GN_ProcessingWholeState* const me);
+void GN_ProcessingWholeState_Init(GN_ProcessingWholeState* const me) {
+StateActionSet_Init(&(me->aSet));
+me->itsContext = NULL;
+/* set up the aSet function pointers */
+
+/* remember that the initializer for the StateActionSet */
+
+/* sets all pointers to NULL as the default */
+
+me->aSet.evDigitHandler = (ActionPtr1) GN_ProcessingWholeState_evDigit;
+
+me->aSet.evDotHandler = (ActionPtr0) GN_ProcessingWholeState_evDot;
+
+me->aSet.evWSHandler = (ActionPtr0) GN_ProcessingWholeState_evWhiteSpace;
+
+me->aSet.evEOSHandler = (ActionPtr0) GN_ProcessingWholeState_evEndOfString;
+
+me->aSet.entryAction = (ActionPtr0) GN_ProcessingWholeState_entryAction;
+
+me->aSet.exitAction = (ActionPtr0) GN_ProcessingWholeState_exitAction;
+
+}
+void GN_ProcessingWholeState_Cleanup(GN_ProcessingWholeState* const me) {
+cleanUpRelations(me);
+}
+void GN_ProcessingWholeState_entryAction(GN_ProcessingWholeState* const me) {
+me->itsContext->result = me->itsContext->result*10 + digit(me->itsContext->ch);
+}
+int GN_ProcessingWholeState_evDigit(GN_ProcessingWholeState* const me, char c) {
+GN_ProcessingWholeState_exitAction(me);
+me->itsContext->ch = c; /* transitiona action */
+/* note: same state is reentered in this case */
+/* so no change to itsContext->currentState */
+return 1; /* event handled */
+}
+int GN_ProcessingWholeState_evDot(GN_ProcessingWholeState* const me) {
+GN_ProcessingWholeState_exitAction(me);
+/* no transition action */
+me->itsContext->currentState = GN_PROCESSINGFRACTIONALPART_STATE;
+return 1; /* event handled */
+}
+int
+GN_ProcessingWholeState_evEndOfString(GN_ProcessingWholeState* const me) {
+GN_ProcessingWholeState_exitAction(me);
+GN_ProcessingWholeState_printResult(me); /* transition action */
+me->itsContext->currentState = NONUMBER_STATE;
+return 1; /* event handled */
+}
+int GN_ProcessingWholeState_evWhiteSpace(GN_ProcessingWholeState* const me) {
+GN_ProcessingWholeState_exitAction(me);
+GN_ProcessingWholeState_printResult(me); /* transition action */
+me->itsContext->currentState = NONUMBER_STATE;
+return 1; /* event handled */
+
+}
+
+/*## operation exitAction() */
+
+void GN_ProcessingWholeState_exitAction(GN_ProcessingWholeState* const me) {
+
+}
+
+void GN_ProcessingWholeState_printResult(GN_ProcessingWholeState* const me) {
+
+printf("Number: %g\n", me->itsContext->result);
+
+}
+
+struct Context* GN_ProcessingWholeState_getItsContext(const GN_ProcessingWholeState*
+const me) {
+return (struct Context*)me->itsContext;
+}
+void
+GN_ProcessingWholeState_setItsContext(GN_ProcessingWholeState* const me, struct Context* p_Context) {
+me->itsContext = p_Context;
+
+}
+
+GN_ProcessingWholeState * GN_ProcessingWholeState_Create(void) {
+
+GN_ProcessingWholeState* me = (GN_ProcessingWholeState *) malloc(sizeof
+
+(GN_ProcessingWholeState));
+
+if(me!=NULL)
+
+GN_ProcessingWholeState_Init(me);
+
+return me;
+
+}
+
+void GN_ProcessingWholeState_Destroy(GN_ProcessingWholeState* const me) {
+
+if(me!=NULL)
+
+GN_ProcessingWholeState_Cleanup(me);
+
+free(me);
+
+}
+
+static void cleanUpRelations(GN_ProcessingWholeState* const me) {
+
+if(me->itsContext != NULL)
+
+me->itsContext = NULL;
+
+}
+
+Code Listing 5-25: GN_ProcessingWholeState.c
+And finally, the code for the GN_ProcessingFractionState is given in Code Listing 5-26
+and Code Listing 5-27.
+#ifndef GN_ProcessingFractionState_H
+
+#define GN_ProcessingFractionState_H
+
+#include "StatePattern.h"
+
+#include "StateActionSet.h"
+
+struct Context;
+typedef struct GN_ProcessingFractionState GN_ProcessingFractionState;
+
+struct GN_ProcessingFractionState {
+struct StateActionSet aSet;
+
+struct Context* itsContext;
+
+};
+
+void GN_ProcessingFractionState_Init(GN_ProcessingFractionState* const me);
+
+void
+
+GN_ProcessingFractionState_Cleanup(GN_ProcessingFractionState* const me);
+
+/* Operations */
+
+void
+
+GN_ProcessingFractionState_Frac2Frac(GN_ProcessingFractionState* const me, char c);
+
+void
+
+GN_ProcessingFractionState_entryAction(GN_ProcessingFractionState* const me);
+
+int
+
+GN_ProcessingFractionState_evDigit(GN_ProcessingFractionState* const me, char c);
+
+int
+
+GN_ProcessingFractionState_evDot(GN_ProcessingFractionState* const me);
+
+int
+
+GN_ProcessingFractionState_evEndOfString(GN_ProcessingFractionState* const me);
+
+int
+
+GN_ProcessingFractionState_evWhiteSpace(GN_ProcessingFractionState* const me);
+
+void
+
+GN_ProcessingFractionState_exitAction(GN_ProcessingFractionState* const me);
+
+void
+
+GN_ProcessingFractionState_printResult(GN_ProcessingFractionState* const me);
+
+struct Context* GN_ProcessingFractionState_getItsContext(const GN_Processing
+
+FractionState* const me);
+
+void
+GN_ProcessingFractionState_setItsContext(GN_ProcessingFractionState* const me, struct
+Context* p_Context);
+GN_ProcessingFractionState *
+
+GN_ProcessingFractionState_Create(void);
+
+void GN_ProcessingFractionState_Destroy(GN_ProcessingFractionState* const me);
+#endif
+Code Listing 5-26: GN_ProcessingFractionState.h
+#include "GN_ProcessingFractionState.h"
+
+#include "Context.h"
+
+static void cleanUpRelations(GN_ProcessingFractionState* const me);
+void GN_ProcessingFractionState_Init(GN_ProcessingFractionState* const me) {
+
+StateActionSet_Init(&(me->aSet));
+
+me->itsContext = NULL;
+
+/* set up the aSet function pointers */
+
+/* remember that the initializer for the StateActionSet */
+/* sets all pointers to NULL as the default */
+
+me->aSet.evDigitHandler = (ActionPtr1) GN_ProcessingFractionState_evDigit;
+
+me->aSet.evDotHandler = (ActionPtr0) GN_ProcessingFractionState_evDot;
+
+me->aSet.evWSHandler = (ActionPtr0) GN_ProcessingFractionState_evWhiteSpace;
+
+me->aSet.evEOSHandler = (ActionPtr0) GN_ProcessingFractionState_evEndOfString;
+
+me->aSet.entryAction = (ActionPtr0) GN_ProcessingFractionState_entryAction;
+
+me->aSet.exitAction = (ActionPtr0) GN_ProcessingFractionState_exitAction;
+
+}
+void
+GN_ProcessingFractionState_Cleanup(GN_ProcessingFractionState* const me) {
+cleanUpRelations(me);
+}
+void
+GN_ProcessingFractionState_Frac2Frac(GN_ProcessingFractionState* const me, char c) {
+me->itsContext->ch = c;
+me->itsContext->result += digit(me->itsContext->ch)/me->itsContext->tensPlace;
+me->itsContext->tensPlace *= 10;
+}
+void
+GN_ProcessingFractionState_entryAction(GN_ProcessingFractionState* const me) {
+}
+int
+GN_ProcessingFractionState_evDigit(GN_ProcessingFractionState* const me, char c) {
+GN_ProcessingFractionState_entryAction(me);
+GN_ProcessingFractionState_Frac2Frac(me, c); /* transition action */
+/* note: state doesn't change, so the same */
+/* state is reentered */
+return 1; /* event handled */
+}
+int
+GN_ProcessingFractionState_evDot(GN_ProcessingFractionState* const me) {
+return 0; /* event discarded */
+}
+int
+GN_ProcessingFractionState_evEndOfString(GN_ProcessingFractionState* const me) {
+GN_ProcessingFractionState_exitAction(me);
+GN_ProcessingFractionState_printResult(me); /* transition action */
+me->itsContext->currentState = NONUMBER_STATE;
+return 1; /* event handled */
+}
+int
+GN_ProcessingFractionState_evWhiteSpace(GN_ProcessingFractionState* const me) {
+GN_ProcessingFractionState_exitAction(me);
+GN_ProcessingFractionState_printResult(me); /* transition action */
+me->itsContext->currentState = NONUMBER_STATE;
+return 1; /* event handled */
+}
+void
+
+GN_ProcessingFractionState_exitAction(GN_ProcessingFractionState* const me) {
+
+}
+
+void
+
+GN_ProcessingFractionState_printResult(GN_ProcessingFractionState* const me) {
+
+printf("Number: %g\n", me->itsContext->result);
+
+}
+
+struct Context* GN_ProcessingFractionState_getItsContext(const GN_ProcessingFractionState* const me) {
+return (struct Context*)me->itsContext;
+}
+void
+GN_ProcessingFractionState_setItsContext(GN_ProcessingFractionState* const me, struct
+Context* p_Context) {
+me->itsContext = p_Context;
+
+}
+
+GN_ProcessingFractionState *
+
+GN_ProcessingFractionState_Create(void) {
+
+GN_ProcessingFractionState* me = (GN_ProcessingFractionState *) malloc(sizeof
+
+(GN_ProcessingFractionState));
+
+if(me!=NULL)
+
+GN_ProcessingFractionState_Init(me);
+
+return me;
+
+}
+
+void
+
+GN_ProcessingFractionState_Destroy(GN_ProcessingFractionState* const me) {
+
+if(me!=NULL)
+
+GN_ProcessingFractionState_Cleanup(me);
+
+free(me);
+
+}
+
+static void cleanUpRelations(GN_ProcessingFractionState* const me) {
+
+if(me->itsContext != NULL)
+
+me->itsContext = NULL;
+
+}
+
+Code Listing 5-27: GN_ProcessingFractionState.c
+It is interesting to see how these elements interact in execution of a simple case. Figure 5-19
+shows the interaction flow for processing the string “1.3” sent from a client of the state
+machine. In this figure, you can see how the event handlers of the Context invoke the
+event handlers of the then-current state to process the incoming events. You may find it
+interesting to compare this figure with the corresponding figure for the State Table Pattern,

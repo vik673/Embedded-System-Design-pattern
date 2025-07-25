@@ -1,0 +1,236 @@
+Critical Region Pattern
+The critical region pattern is the simplest pattern for task coordination around. It consists of
+disabling task switching during a region where it is important that the current task executes
+without being preempted. This can be because it is accessing a resource that cannot be
+simultaneously accessed safely, or because it is crucial that the task executes for a portion of
+time without interruption.
+4.4.1 Abstract
+In a preemptive multitasking environment (see the Static Priority Pattern, above), there may be
+periods of time during which a task must not be interrupted or preempted. The Critical Region
+Pattern address these intervals by disabling task switching or even by disabling interrupts (see
+the Interrupt Pattern, above). This provides uninterrupted execution by the current task. Once
+beyond the critical region, the task must reenable task switching (or interrupts) or the system
+will fail.
+4.4.2 Problem
+There are two primary circumstances under which a task should not be interrupted or preempted. First, it may be accessing a resource that may not be safely accessed by multiple clients
+simultaneously. Secondly, the task may be performing actions that must be completed within a
+short period of time or that must be performed in a specific order. This pattern allows the active
+task to execute without any potential interference from other tasks.
+4.4.3 Pattern Structure
+Figure 4-12 shows just how structurally simple this pattern is. In a common variant, the
+protected element is a resource and not a task; this is shown in Figure 4-13. In either case,
+within the relevant services, task switching must be disabled before the critical region begins
+and reenabled before the service ends. Note that unlike the Guarded Call Pattern, the scheduler
+is not involved in the critical region begin/end process other than to provide services to disable/
+enable task switching. If the scheduler does not provide such services, then the critical region
+can be controlled with the user of the C asm directive to turn on or off interrupt processing at
+the hardware level.
+4.4.4 Collaboration Roles
+This section describes the roles for this pattern.
+4.4.4.1 CRSharedResource
+This element is used in the variant of the Critical Resource Pattern that disables task switching
+to prevent simultaneous access to the resource. In the case of the pattern, the protected resource
+is the value attribute. Note that all the relevant services must implement the critical region to
+protect the resource. In this case, it means that both the setValue() and getValue()
+functions must separately implement the critical region.
+4.4.4.2 TaskWithCriticalRegion
+This element is used when the task wants to disable task switching for reasons unrelated to
+sharing resources (usually related to timing). The criticalService() disables and enables task
+switching or interrupts during its critical region(s).
+3 TaskWithSharedResource
+This element stands for the set of all tasks that may want to access the shared resource
+(hence the ‘*’ multiplicity on the directed association). These tasks have no knowledge
+about the method for protecting the resource, since that is encapsulated within the shared
+resource.
+4.4.5 Consequences
+This pattern enforces the critical region policies well and can be used to turn off the scheduled
+task switches or, more draconianly, disable interrupts all together. Care must be taken to
+reenable task switching once the element is out of its critical region. Additionally, the use of this
+pattern can affect the timing of other tasks. Critical regions are usually short in duration for this
+reason. There is no problem of unbounded priority inversion because all task switching is
+disabled during the critical region.
+Care must be taken when nesting calls to functions with their own critical regions. If such a
+function is called within the critical region of another, the nest function call will reenable
+task switching and end the critical region of the caller function.
+4.4.6 Implementation Strategies
+This pattern is usually implemented either by using scheduler-provided services such as
+OS_disable_task_switching() and OS_enable_task_switching() (or something
+similar) or by introducing assembly language instructions to disable or enable interrupt
+processing at the hardware level.
+
+Related Patterns
+This pattern is only appropriate when multiple tasks can access the same resource or services
+or when other tasks could interrupt time-critical processing of the current task. For this reason,
+it is not appropriate with the Cyclic Executive Pattern, but is often used with the Static
+Priority Pattern.
+4.4.8 Example
+The example in Figure 4-14 shows a single task CRRobotArmManager with a function
+moveRobotArm that has a critical region during the actual movement of the arm.
+In either case, the critical region is encapsulated entirely with the moveRobotArm() and
+motorZero() services
+#ifndef CRRobotArmManager_H
+#define CRRobotArmManager_H
+struct CRDisplay;
+struct RobotArm;
+struct UserInput;
+typedef struct CRRobotArmManager CRRobotArmManager;
+struct CRRobotArmManager {
+struct CRDisplay* itsCRDisplay;
+struct RobotArm* itsRobotArm;
+struct UserInput* itsUserInput;
+};
+/* Constructors and destructors:*/
+void CRRobotArmManager_Init(CRRobotArmManager* const me);
+void CRRobotArmManager_Cleanup(CRRobotArmManager* const me);
+/* Operations */
+void CRRobotArmManager_motorZero(CRRobotArmManager* const me);
+void CRRobotArmManager_moveRobotArm(CRRobotArmManager* const me);
+struct CRDisplay* CRRobotArmManager_getItsCRDisplay(const
+CRRobotArmManager* const me);
+void CRRobotArmManager_setItsCRDisplay(CRRobotArmManager* const
+me, struct CRDisplay* p_CRDisplay);
+struct RobotArm* CRRobotArmManager_getItsRobotArm(const
+
+CRRobotArmManager* const me);
+
+void CRRobotArmManager_setItsRobotArm(CRRobotArmManager* const me,
+struct RobotArm* p_RobotArm);
+struct UserInput* CRRobotArmManager_getItsUserInput(const
+
+CRRobotArmManager* const me);
+
+void CRRobotArmManager_setItsUserInput(CRRobotArmManager* const me,
+struct UserInput* p_UserInput);
+CRRobotArmManager * CRRobotArmManager_Create(void);
+void CRRobotArmManager_Destroy(CRRobotArmManager* const me);
+#endif
+
+: CRRobotArmManager.h
+#include "CRRobotArmManager.h"
+
+#include "CRDisplay.h"
+
+#include "RobotArm.h"
+
+#include "UserInput.h"
+
+static void cleanUpRelations(CRRobotArmManager* const me);
+void CRRobotArmManager_Init(CRRobotArmManager* const me) {
+
+me->itsCRDisplay = NULL;
+
+me->itsRobotArm = NULL;
+
+me->itsUserInput = NULL;
+
+}
+void CRRobotArmManager_Cleanup(CRRobotArmManager* const me) {
+cleanUpRelations(me);
+}
+void CRRobotArmManager_motorZero(CRRobotArmManager* const me) {
+int success = 1;
+OS_disable_task_switching();
+/* critical region code */
+
+success = RobotArm_moveTo(me->itsRobotArm,0,0,0);
+
+/* critical region ends */
+
+OS_enable_task_switching();
+
+if (!success)
+CRDisplay_printMsg(me->itsCRDisplay,"Cannot zero!");
+}
+void CRRobotArmManager_moveRobotArm(CRRobotArmManager* const me) {
+/* local stack variable declarations */
+int x, y, z, success = 1;
+/*noncritical region code */
+/*	 note that the function below has its
+
+own critical region and so cannot be
+
+called inside of the critical region
+
+of this function
+
+*/
+
+CRRobotArmManager_motorZero(me);
+
+x = UserInput_getX(me->itsUserInput);
+
+y = UserInput_getY(me->itsUserInput);
+
+z = UserInput_getX(me->itsUserInput);
+
+/* critical region begins */
+
+OS_disable_task_switching();
+
+/* critical region code */
+
+success = RobotArm_moveTo(me->itsRobotArm,x,y,z);
+
+/* critical region ends */
+
+OS_enable_task_switching();
+
+/* more noncritical region code */
+CRDisplay_printInt(me->itsCRDisplay, "Result is ", success);
+}
+struct CRDisplay* CRRobotArmManager_getItsCRDisplay(const
+CRRobotArmManager* const me) {
+return (struct CRDisplay*)me->itsCRDisplay;
+}
+
+void CRRobotArmManager_setItsCRDisplay(CRRobotArmManager* const
+me, struct CRDisplay* p_CRDisplay) {
+me->itsCRDisplay = p_CRDisplay;
+}
+struct RobotArm* CRRobotArmManager_getItsRobotArm(const
+CRRobotArmManager* const me) {
+return (struct RobotArm*)me->itsRobotArm;
+}
+void CRRobotArmManager_setItsRobotArm(CRRobotArmManager* const me,
+struct RobotArm* p_RobotArm) {
+me->itsRobotArm = p_RobotArm;
+}
+struct UserInput* CRRobotArmManager_getItsUserInput(const
+CRRobotArmManager* const me) {
+return (struct UserInput*)me->itsUserInput;
+}
+void CRRobotArmManager_setItsUserInput(CRRobotArmManager* const
+me, struct UserInput* p_UserInput) {
+me->itsUserInput = p_UserInput;
+}
+CRRobotArmManager * CRRobotArmManager_Create(void) {
+CRRobotArmManager* me = (CRRobotArmManager *)
+malloc(sizeof(CRRobotArmManager));
+if(me!=NULL)
+{
+CRRobotArmManager_Init(me);
+}
+return me;
+}
+void CRRobotArmManager_Destroy(CRRobotArmManager* const me) {
+if(me!=NULL)
+{
+CRRobotArmManager_Cleanup(me);
+}
+free(me);
+}
+static void cleanUpRelations(CRRobotArmManager* const me) {
+if(me->itsCRDisplay != NULL)
+{
+me->itsCRDisplay = NULL;
+}
+if(me->itsRobotArm != NULL)
+{
+me->itsRobotArm = NULL;
+}
+if(me->itsUserInput != NULL)
+{
+me->itsUserInput = NULL;
+}
+}
+this is implementation for CRRobotArmManager.c

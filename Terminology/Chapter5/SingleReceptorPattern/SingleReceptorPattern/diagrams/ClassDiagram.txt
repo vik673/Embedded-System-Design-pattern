@@ -1,0 +1,299 @@
+Single Event Receptor Pattern - Class Diagram
+===============================================
+
+OVERVIEW: The Single Event Receptor Pattern provides a unified interface for both
+synchronous and asynchronous event processing in embedded state machines.
+
+PATTERN STRUCTURE
+=================
+
+                    ┌─────────────────┐
+                    │     Client      │
+                    │   (main.c)      │
+                    └─────────┬───────┘
+                              │ creates/uses
+                    ┌─────────▼───────┐
+                    │   Event Types   │
+                    │ ┌─────────────┐ │
+                    │ │ EVDIGIT     │ │
+                    │ │ EVDOT       │ │
+                    │ │ EVWHITESPACE│ │
+                    │ │ EVENDOFSTRING│ │
+                    │ └─────────────┘ │
+                    └─────────────────┘
+                              │
+                    ┌─────────▼───────┐
+                    │     Event       │
+                    │ ┌─────────────┐ │
+                    │ │ eType       │ │
+                    │ │ ed.c: char  │ │
+                    │ └─────────────┘ │
+                    └─────────┬───────┘
+                              │
+                ┌─────────────▼─────────────┐
+                │      Pattern Choice       │
+                └─────┬─────────────┬───────┘
+                      │             │
+              ┌───────▼───────┐ ┌───▼─────────┐
+              │ Synchronous   │ │ Asynchronous│
+              │   Version     │ │   Version   │
+              └───────────────┘ └─────────────┘
+
+SYNCHRONOUS VERSION CLASS DIAGRAM
+==================================
+
+┌─────────────────────────────────┐      ┌─────────────────────────────────┐
+│            Event                │      │        EventType (enum)         │
+├─────────────────────────────────┤      ├─────────────────────────────────┤
+│ + eType: EventType              │ ────►│ EVDIGIT                         │
+│ + ed: union eventData           │      │ EVDOT                           │
+│   - c: char                     │      │ EVWHITESPACE                    │
+└─────────────────────────────────┘      │ EVENDOFSTRING                   │
+                │                        └─────────────────────────────────┘
+                │ passed to
+                ▼
+┌─────────────────────────────────┐      ┌─────────────────────────────────┐
+│          Mutex                  │      │    TSTATETYPE (enum)            │
+├─────────────────────────────────┤      ├─────────────────────────────────┤
+│ - locked: int                   │      │ NULL_STATE                      │
+├─────────────────────────────────┤      │ NONUMBER_STATE                  │
+│ + Mutex_Init()                  │      │ GOTNUMBER_STATE                 │
+│ + Mutex_Cleanup()               │      └─────────────────────────────────┘
+│ + Mutex_lock()                  │
+│ + Mutex_release()               │      ┌─────────────────────────────────┐
+│ + Mutex_Create()                │      │   TSUBSTATETYPE (enum)          │
+│ + Mutex_Destroy()               │      ├─────────────────────────────────┤
+└─────────────────────────────────┘      │ NULL_SSTATE                     │
+                ▲                        │ PROCESSINGWHOLEPART_SSTATE      │
+                │ protects               │ PROCESSINGFRACTIONALPART_SSTATE │
+                │                        └─────────────────────────────────┘
+┌─────────────────────────────────┐
+│ TokenizerSyncSingleReceptor     │
+├─────────────────────────────────┤
+│ - ch: char                      │
+│ - result: double                │
+│ - stateID: TSTATETYPE           │
+│ - subStateID: TSUBSTATETYPE     │
+│ - tensPlace: double             │
+│ - itsMutex: Mutex*              │
+├─────────────────────────────────┤
+│ + Init()                        │
+│ + Cleanup()                     │
+│ + eventDispatch(Event)          │ ◄── Main Event Processing
+│ + enter_GotNumber()             │
+│ + enter_NoNumber()              │
+│ + enter_ProcessingWholePart()   │
+│ + enter_ProcessingFractionalPart()│
+│ + exit_GotNumber()              │
+│ + exit_NoNumber()               │
+│ + exit_ProcessingWholePart()    │
+│ + exit_ProcessingFractionalPart()│
+│ + getItsMutex()                 │
+│ + setItsMutex()                 │
+│ + Create()                      │ ◄── Factory Methods
+│ + Destroy()                     │
+└─────────────────────────────────┘
+
+ASYNCHRONOUS VERSION CLASS DIAGRAM
+===================================
+
+┌─────────────────────────────────┐      ┌─────────────────────────────────┐
+│            Event                │      │          Mutex                  │
+├─────────────────────────────────┤      ├─────────────────────────────────┤
+│ + eType: EventType              │      │ - locked: int                   │
+│ + ed: union eventData           │      ├─────────────────────────────────┤
+│   - c: char                     │      │ + Mutex_Init()                  │
+└─────────┬───────────────────────┘      │ + Mutex_Cleanup()               │
+          │ queued                       │ + Mutex_lock()                  │
+          ▼                              │ + Mutex_release()               │
+┌─────────────────────────────────┐      │ + Mutex_Create()                │
+│         TSREventQueue           │ ────►│ + Mutex_Destroy()               │
+├─────────────────────────────────┤      └─────────────────────────────────┘
+│ - q[100]: Event                 │
+│ - size: int                     │      ┌─────────────────────────────────┐
+│ - head: int                     │      │        OSSignal                 │
+│ - tail: int                     │      ├─────────────────────────────────┤
+│ - itsMutex: Mutex*              │      │ + postSignal()                  │
+├─────────────────────────────────┤      │ + waitOnSignal()                │
+│ + Init()                        │      └─────────────────────────────────┘
+│ + Cleanup()                     │                    ▲
+│ + isEmpty()                     │                    │ signals
+│ + isFull()                      │                    │
+│ + post(Event)                   │ ◄── Queue Management
+│ + pull(): Event                 │
+│ + getItsMutex()                 │
+│ + setItsMutex()                 │
+│ + Create()                      │
+│ + Destroy()                     │
+└─────────────────────────────────┘
+                ▲
+                │ uses
+                │
+┌─────────────────────────────────┐
+│ TokenizerAsyncSingleReceptor    │
+├─────────────────────────────────┤
+│ - ch: char                      │
+│ - result: double                │
+│ - stateID: TSTATETYPE           │
+│ - subStateID: TSUBSTATETYPE     │
+│ - tensPlace: double             │
+│ - itsTSREventQueue: TSREventQueue*│
+├─────────────────────────────────┤
+│ + Init()                        │
+│ + Cleanup()                     │
+│ + eventDispatch(Event)          │
+│ + taskLoop()                    │ ◄── Async Event Loop
+│ + enter_GotNumber()             │
+│ + enter_NoNumber()              │
+│ + enter_ProcessingWholePart()   │
+│ + enter_ProcessingFractionalPart()│
+│ + exit_GotNumber()              │
+│ + exit_NoNumber()               │
+│ + exit_ProcessingWholePart()    │
+│ + exit_ProcessingFractionalPart()│
+│ + getItsTSREventQueue()         │
+│ + setItsTSREventQueue()         │
+│ + Create()                      │
+│ + Destroy()                     │
+└─────────────────────────────────┘
+
+PATTERN RELATIONSHIPS AND KEY CONCEPTS
+=======================================
+
+1. SINGLE EVENT RECEPTOR PRINCIPLE:
+   ┌─────────────────────────────────┐
+   │    Single Event Interface       │
+   │                                 │
+   │  ┌─────────────────────────┐    │
+   │  │    eventDispatch()      │    │
+   │  │                         │    │
+   │  │  Handles ALL events:    │    │
+   │  │  • EVDIGIT              │    │
+   │  │  • EVDOT                │    │
+   │  │  • EVWHITESPACE         │    │
+   │  │  • EVENDOFSTRING        │    │
+   │  └─────────────────────────┘    │
+   └─────────────────────────────────┘
+
+2. HIERARCHICAL STATE MACHINE:
+   ┌─────────────────────────────────┐
+   │         Main States             │
+   │  ┌─────────────────────────┐    │
+   │  │ NONUMBER_STATE          │    │
+   │  │ GOTNUMBER_STATE         │    │
+   │  └─────────────────────────┘    │
+   │                                 │
+   │         Sub States              │
+   │  ┌─────────────────────────┐    │
+   │  │ PROCESSINGWHOLEPART     │    │
+   │  │ PROCESSINGFRACTIONALPART│    │
+   │  └─────────────────────────┘    │
+   └─────────────────────────────────┘
+
+3. MEMORY MANAGEMENT PATTERN (RAII):
+   ┌─────────────────────────────────┐
+   │     Create/Destroy Pairs        │
+   │                                 │
+   │  Object_Create() ←──→ Object_Destroy() │
+   │      │                     ▲          │
+   │      ▼                     │          │
+   │  malloc() + Init()    Cleanup() + free() │
+   └─────────────────────────────────┘
+
+CLIENT RELATIONSHIP AND USAGE PATTERNS
+=======================================
+
+┌─────────────────────────────────┐
+│           Client                │
+│         (main.c)                │
+├─────────────────────────────────┤
+│ + testSynchronousReceptor()     │
+│ + testAsynchronousReceptor()    │
+│ + createEvent(type, char)       │ ◄── Helper Functions
+│ + main()                        │
+└─────────┬───────────────────────┘
+          │ demonstrates usage
+          ▼
+    ┌─────────────────────────────┐
+    │     Usage Examples:         │
+    │                             │
+    │  Sync:  "123.45" → 123.45  │
+    │  Async: "42.7"  → 42.7     │
+    │                             │
+    │  Numbers: "0.789" → 0.789  │
+    └─────────────────────────────┘
+
+THREAD SAFETY AND CONCURRENCY
+==============================
+
+┌─────────────────────────────────┐
+│        Synchronous              │
+│  ┌─────────────────────────┐    │
+│  │    Mutex Protection     │    │
+│  │                         │    │
+│  │  lock() → process →     │    │
+│  │  release()              │    │
+│  └─────────────────────────┘    │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│       Asynchronous              │
+│  ┌─────────────────────────┐    │
+│  │   Queue + Signal        │    │
+│  │                         │    │
+│  │  post() → signal() →    │    │
+│  │  wait() → pull() →      │    │
+│  │  process()              │    │
+│  └─────────────────────────┘    │
+└─────────────────────────────────┘
+│ - subStateID: TSUBSTATETYPE     │
+│ - tensPlace: double             │
+│ - itsTSREventQueue: TSREventQueue*│
+├─────────────────────────────────┤
+│ + Init()                        │
+│ + Cleanup()                     │
+│ + eventDispatch(Event)          │
+│ + taskLoop()                    │
+│ + enter_GotNumber()             │
+│ + enter_NoNumber()              │
+│ + enter_ProcessingWholePart()   │
+│ + enter_ProcessingFractionalPart()│
+│ + exit_GotNumber()              │
+│ + exit_NoNumber()               │
+│ + exit_ProcessingWholePart()    │
+│ + exit_ProcessingFractionalPart()│
+│ + getItsTSREventQueue()         │
+│ + setItsTSREventQueue()         │
+│ + Create()                      │
+│ + Destroy()                     │
+└─────────────────────────────────┘
+
+STATE ENUMERATIONS
+==================
+
+┌─────────────────────────────────┐      ┌─────────────────────────────────┐
+│         TSTATETYPE              │      │       TSUBSTATETYPE             │
+├─────────────────────────────────┤      ├─────────────────────────────────┤
+│ NULL_STATE                      │      │ NULL_SSTATE                     │
+│ NONUMBER_STATE                  │      │ PROCESSINGWHOLEPART_SSTATE      │
+│ GOTNUMBER_STATE                 │      │ PROCESSINGFRACTIONALPART_SSTATE │
+└─────────────────────────────────┘      └─────────────────────────────────┘
+
+CLIENT RELATIONSHIP
+===================
+
+┌─────────────────────────────────┐
+│           Client                │
+│         (main.c)                │
+├─────────────────────────────────┤
+│ + testSynchronousReceptor()     │
+│ + testAsynchronousReceptor()    │
+│ + createEvent()                 │
+└─────────────────────────────────┘
+                │
+                │ creates/uses
+                ▼
+    ┌───────────────────┐    ┌───────────────────┐
+    │   Synchronous     │    │   Asynchronous    │
+    │    Receptor       │    │     Receptor      │
+    └───────────────────┘    └───────────────────┘

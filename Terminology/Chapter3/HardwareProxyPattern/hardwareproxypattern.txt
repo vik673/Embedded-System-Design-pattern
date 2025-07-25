@@ -1,0 +1,74 @@
+Hardware Proxy
+This is the primary class (or function) in the system. It has both data and functions that are
+customized to the device at hand, although usually each one has an initialize(), configure(), and
+disable() function. The other public functions provide read access to values from the device or
+set values sent to the device. Although the pattern structure has a single access() and mutate()
+function, it is common to have several such functions, each bearing the name of the value being
+read or set.
+The key features7 of the class include:
+access()
+This public function returns a particular value from the device. In most cases, the class will
+contain a separate function for each separately-identifiable piece of information desired from
+the device. This operation usually calls the unmarshal() function prior to returning the
+retrieved values to the client.
+configure()
+This public function provides a means by which the device may be configured. Although in the
+general pattern no parameter list can be provided, this function almost always takes a list of
+parameters that specify the proper operating state of the device.
+disable()
+This public function provides a means by which the device may be safely turned off or
+disabled. It may or may not have parameters depending upon the device characteristics.
+deviceAddr
+This private variable provides low-level direct access to the hardware. In the pattern it is shown
+as a void* but it may be a memory mapped integer (int*) or other primitive type, a portmapped device port number, 
+or some other location identified. If more complex means are
+used to access the device, such as an RS232 serial port or an Ethernet connection, then this data type
+and its access method will be more complex. In any event, the public functions provided by the
+Hardware Proxy completely hide how the proxy connects to the actual device. This variable is
+not directly accessible by the client.
+initialize()
+This public function enables and initializes the device prior to first use. It is common for this
+function to have no parameters but in some cases it may need values provided by the client.
+marshal()
+This private function takes parameters from various other functions and performs any required
+encryption, compression, or bit-packing required to send the data to the device. This ensures
+that the peculiarities of the device interface are hidden from the client. Data in the format
+required by the actual device are known as “marshaled data” or are said to be in “native
+format.” Data that are in a form that is easily manipulated by software are said to be
+“unmarshaled” or in “presentation format.” This function is not accessible by the client since
+native format is hidden from the clients.
+mutate()
+This public function writes data values to the device. This function always has one or more
+input parameters. It usually calls the marshal() operation prior to writing the value to the
+device.
+unmarshal()
+This private function performs any necessary unpacking, decryption, and decompression of the
+data retrieved from the device prior to returning them to the client in presentation format. This
+ensures that the peculiarities of the device interface are hidden from the client. This function is
+not accessible by the client.
+
+
+– the specific encoding of the bits. To this end, several types of services are offered by the
+motor proxy:
+Motor Management Functions
+•	 configure() – this function sets up the memory-mapped address of the motor and the length
+of the rotary arm; this function must be called first
+•	 disable() – this function turns off the motor but keeps the set values intact
+•	 enable() – this function turns the motor on with the current set values
+•	 initialize() – this function turns on the motor to default set values (off)
+Motor Status Functions
+•	 accessMotorDirection() – this function returns the current motor direction (off, forward, or
+reverse)
+•	 accessMotorSpeed() – this function returns the speed of motor
+
+Motor Control Functions
+•	 writeMotorSpeed() – this function sets the speed of the motor and adjusts for the length of
+the rotary arm (if set)
+Motor Error Management Functions
+•	 clearErrorStatus() – this function clears all error bits
+•	 accessMotorState() – this function returns the error status
+Internal Data Formatting Functions (private)
+These functions aren’t provided to the clients, but are used internally to exchange the data
+between native and presentation formats.
+•	 marshal() – converts presentation (client) data format to native (motor) format
+•	 unmarshal() – converts native (motor) data format to presentation (client) format

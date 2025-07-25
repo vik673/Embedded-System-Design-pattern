@@ -1,0 +1,715 @@
+4 Smart Data Pattern
+One of the biggest problems I see with embedded C code in actual application is that functions all
+have preconditions for their proper execution but these functions don’t explicitly check that those
+preconditons are actually satisfied. This falls under the heading of what is commonly known as
+“defensive design” – a development paradigm in which we design with proactive run-time defenses
+in place to detect problems. The Smart Data Pattern codifies that paradigm for scalar data elements.
+6.4.1 Abstract
+One of the reasons that languages such as Ada are considered “safer6
+” than C is that they have
+run-time checking. These checks include array index range checking, definition of subtypes
+and subranges (such as defining a subtype Color to be not only limited to a set of colors but
+generate errors if that range is exceeded), and parameter range checks. Indeed although the C++
+language is not inherently “safe” by this standard, because data structures may be bound
+together with operations that provide run-time checking, it can be made “safe” by intention if
+not by default. This pattern, although landing more within the accepted range of “idiom” rather
+than “pattern,” addresses those concerns by creating C classes that explicitly perform these
+6.4.2 Problem
+The most common idiom for error checking of data ranges in C is for functions that have no
+other return value: return a 0 value for function success and a -1 value for failure and set errno
+to an error code.
+The problem is, of course, that the most common way to “handle” the return values is to ignore
+them, resulting in difficult-to-debug systems. Some people even put error checking into the
+system during development but remove such checks in the final release. I would argue that the
+time when you really want to know that the altitude determination program in your aircraft isn’t
+producing the right value is when you are in the flying aircraft.
+The problem this pattern addresses is to build functions and data types that essentially check
+themselves and provide error detection means that cannot be easily ignored.
+6.4.3 Pattern Structure
+As mentioned above, this pattern falls into the idiomatic (tiny pattern) range rather than a
+collaboration pattern. The key concepts of the pattern are to 1) build self-checking types
+whenever possible; 2) check incoming parameter values for appropriate range checking; and 3)
+check consistency and reasonableness among one or a set of parameters. Figure 6-6 shows the
+structure of the pattern.
+6.4.4 Collaboration Roles
+This section describes the roles for this pattern.
+6.4.4.1 ErrorCodeType
+The ErrorCodeType is an enumeration of possible error codes. This can be, and is often, done
+with ints but enums clarify the intention and usage of the codes more clearly.
+6.4.4.2 ErrorManager
+The ErrorManager class handles the errors identified within the SubrangeType; the actions
+are system-, context-, and error-specific.
+6.4.4.3 ServerClass
+This role in the pattern is an element that uses the SmartDataType.
+6.4.4.4 SmartDataType
+One of the disadvantages of data structures is that while they all have preconditions and
+rules for proper usage, they have no intrinsic behavior to enforce the conditions and rules.
+This class binds together the data (of type PrimitiveType) with operations that ensure
+they stay in range.
+This class provides a variety of functions. The SmartDataType_Init() function takes
+five parameters – the me pointer to point to the instance data, the initial value being
+set, the low and high values specifying the valid data subrange, and the address of the
+ErrorManager. If the entire range of the primitive type is valid, then you can simply use
+the primitive type or use the low and high values to the min and max for the type (such as
+SHRT_MIN and SHRT_MAX, or INT_MIN and INT_MAX declared in <limits.h>, for example).
+To create a new instance on the heap, simply use SmartDataType_Create(), which
+takes three parameters – the value, the low boundary, and the high boundary and returns a
+pointer to the newly created instance.
+SmartDataTypes can be assigned to each other with the SmartDataType_setValue()
+and SmartDataType_getValue() functions and compared with the boundary with the
+SmartDataType_cmp() function and without the boundaries with the SmartDataType_pCmp()
+function. The held data can be independently set with the SmartDataType_setPrimitive()
+and SmartDataType_getPrimitive() functions. The low and high boundaries can also be set
+and read independently
+6.4.5 Consequences
+The downside for using smart data types is the performance overhead for executing
+the operations. The upside is that data are self-protecting and provide automatic checking
+when data are set. It is also possible for the programmers to avoid using the functionsand access the values directly if they are so inclined, defeating the purpose of the smart
+data type.
+6.4.6 Implementation Strategies
+The key implementation strategy is to create a struct with a set of defined operations, and then
+only use those operations to access the values. The pattern can be extended to include an
+enumerated type of the units of the value when dealing with numbers with units, such as
+currency (e.g., euro and dollar), mass (such as pounds, kilograms), and distance (such as inches,
+feet, yards, fathoms, miles, and even meters). This is a useful extension when dealing with data
+from different clients that may require conversion. The conversion functions can be built into
+the class so that you both set and get the values in a specified unit.
+6.4.7 Related Patterns
+The idea of building smart types is extended pointers with the Smart Pointer Pattern.
+6.4.8 Example
+Figure 6-7 shows a simple medical example of using smart data types. The ServerClass role
+from the pattern is fulfilled by the PatientDataClass in the figure. It has three SmartInt
+variables (weight, age, and heart rate) and two SmartColor variables (foreground color and
+background color). I included the use of an enumerated type ColorType to show how the
+pattern can be used for types other than built-in types.
+Code Listing 6-7 gives the basic use types for the example.
+#ifndef SmartDataExample_H
+
+#define SmartDataExample_H
+
+struct AlarmManager;
+
+struct PatientDataClass;
+
+struct SmartColor;
+
+struct SmartDataClient;
+
+struct SmartInt;
+
+typedef enum ErrorCodeType {
+
+NO_ERRORS,
+
+BELOW_RANGE,
+
+ABOVE_RANGE,
+
+INCONSISTENT_VALUE,
+
+ILLEGAL_USE_OF_NULL_PTR,
+
+INDEX_OUT_OF_RANGE
+
+} ErrorCodeType;
+typedef enum ColorType {
+BLACK,
+BROWN,
+RED,
+PINK,
+BLUE,
+GREEN,
+YELLOW,
+WHITE
+}
+ColorType;
+#endif
+Code Listing 6-7: SmartDataExample.h
+The SmartInt data type is used for three variables in the PatientDataClass. It provides
+the basic functions identified in the SmartData role of the pattern, where int is the primitive
+type. Its code is shown in Code Listing 6-8 and Code Listing 6-9.
+#ifndef SmartInt_H
+#define SmartInt_H
+#include "SmartDataExample.h"
+struct AlarmManager;
+typedef struct SmartInt SmartInt;
+struct SmartInt {
+ErrorCodeType errorCode;
+int highRange;
+int lowRange;
+int value;
+struct AlarmManager* itsAlarmManager;
+};
+/* Constructors and destructors:*/
+void SmartInt_Init(SmartInt* const me, int val, int low, int
+high, struct AlarmManager* errMgr);
+void SmartInt_Cleanup(SmartInt* const me);
+/* Operations */
+ErrorCodeType SmartInt_checkValidity(SmartInt* const me);
+int SmartInt_cmp(SmartInt* const me, SmartInt s);
+void SmartInt_errorHandler(SmartInt* const me, ErrorCodeType err);
+ErrorCodeType SmartInt_getErrorCode(SmartInt* const me);
+int SmartInt_getHighBoundary(SmartInt* const me);
+int SmartInt_getLowBoundary(SmartInt* const me);
+int SmartInt_getPrimitive(SmartInt* const me);
+SmartInt SmartInt_getValue(SmartInt* const me);
+int SmartInt_pCmp(SmartInt* const me, SmartInt s);
+void SmartInt_setHighBoundary(SmartInt* const me, int high);
+void SmartInt_setLowBoundary(SmartInt* const me, int low);
+ErrorCodeType SmartInt_setPrimitive(SmartInt* const me, int p);
+ErrorCodeType SmartInt_setValue(SmartInt* const me, SmartInt s);
+struct AlarmManager* SmartInt_getItsAlarmManager(const SmartInt* const me);
+void SmartInt_setItsAlarmManager(SmartInt* const me, struct
+
+AlarmManager* p_AlarmManager);
+
+SmartInt * SmartInt_Create(int val, int low, int high, struct AlarmManager* errMgr);
+void SmartInt_Destroy(SmartInt* const me);
+
+#endif
+
+Code Listing 6-8: SmartInt.h
+#include "SmartInt.h"
+
+#include "AlarmManager.h"
+
+static void cleanUpRelations(SmartInt* const me);
+void SmartInt_Init(SmartInt* const me, int val, int low, int
+high, struct AlarmManager* errMgr) {
+
+me->errorCode = NO_ERRORS;
+
+me->itsAlarmManager = NULL;
+
+me->lowRange = low;
+
+me->highRange = high;
+
+me->value = val;
+
+me->itsAlarmManager = errMgr;
+
+}
+void SmartInt_Cleanup(SmartInt* const me) {
+
+cleanUpRelations(me);
+
+}
+ErrorCodeType SmartInt_checkValidity(SmartInt* const me) {
+
+if (me->value < me->lowRange)
+
+return BELOW_RANGE;
+
+else if (me->value > me->highRange)
+
+return ABOVE_RANGE;
+
+else
+
+return NO_ERRORS;
+
+}
+
+int SmartInt_cmp(SmartInt* const me, SmartInt s) {
+
+return memcmp(me, &s, sizeof(s));
+
+}
+void SmartInt_errorHandler(SmartInt* const me, ErrorCodeType err) {
+
+AlarmManager_addAlarm(me->itsAlarmManager, err);
+
+}
+ErrorCodeType SmartInt_getErrorCode(SmartInt* const me) {
+
+return me->errorCode;
+
+}
+int SmartInt_getHighBoundary(SmartInt* const me) {
+return me->highRange;
+}
+int SmartInt_getLowBoundary(SmartInt* const me) {
+return me->lowRange;
+}
+int SmartInt_getPrimitive(SmartInt* const me) {
+return me->value;
+}
+SmartInt SmartInt_getValue(SmartInt* const me) {
+/*#[ operation getValue() */
+return *me;
+/*#]*/
+}
+int SmartInt_pCmp(SmartInt* const me, SmartInt s) {
+int a = SmartInt_getPrimitive(&s);
+return memcmp(&me->value, &a, sizeof(me->value));
+}
+void SmartInt_setHighBoundary(SmartInt* const me, int high) {
+me->highRange = high;
+}
+void SmartInt_setLowBoundary(SmartInt* const me, int low) {
+me->lowRange = low; }
+ErrorCodeType SmartInt_setPrimitive(SmartInt* const me, int p) {
+me->errorCode = NO_ERRORS;
+if (p < me->lowRange) {
+me->errorCode = BELOW_RANGE;
+AlarmManager_addAlarm(me->itsAlarmManager, me->errorCode);
+}
+else if (p > me->highRange) {
+me->errorCode = ABOVE_RANGE;
+AlarmManager_addAlarm(me->itsAlarmManager, me->errorCode);
+}
+else
+
+me->value = p;
+
+return me->errorCode;
+}
+ErrorCodeType SmartInt_setValue(SmartInt* const me, SmartInt s) {
+me->errorCode = SmartInt_checkValidity(&s);
+if (me->errorCode == NO_ERRORS)
+*me = s;
+
+else
+
+SmartInt_errorHandler(me, me->errorCode);
+ return me->errorCode;
+
+}
+
+struct AlarmManager* SmartInt_getItsAlarmManager(const SmartInt* const me) {
+
+return (struct AlarmManager*)me->itsAlarmManager;
+
+}
+
+void SmartInt_setItsAlarmManager(SmartInt* const me, struct
+
+AlarmManager* p_AlarmManager) {
+
+me->itsAlarmManager = p_AlarmManager;
+
+}
+
+SmartInt * SmartInt_Create(int val, int low, int high, struct AlarmManager* errMgr) {
+SmartInt* me = (SmartInt *) malloc(sizeof(SmartInt));
+if(me!=NULL)
+SmartInt_Init(me, val, low, high, errMgr);
+
+return me;
+
+}
+
+void SmartInt_Destroy(SmartInt* const me) {
+
+if(me!=NULL)
+
+SmartInt_Cleanup(me);
+
+free(me);
+
+}
+
+static void cleanUpRelations(SmartInt* const me) {
+
+if(me->itsAlarmManager != NULL)
+
+me->itsAlarmManager = NULL;
+
+}
+
+Code Listing 6-9: SmartInt.c
+Similarly, the code for the SmartColor class is given in Code Listing 6-10 and Code
+Listing 6-11.
+#ifndef SmartColor_H
+
+#define SmartColor_H
+
+#include "SmartDataExample.h"
+
+#include "SmartInt.h"
+
+struct AlarmManager;
+
+typedef struct SmartColor SmartColor;
+struct SmartColor {
+
+ErrorCodeType errorCode;
+
+ColorType highRange;
+
+ColorType lowRange;
+
+ColorType value;
+ 
+ struct AlarmManager* itsAlarmManager;
+
+};
+
+/* Constructors and destructors:*/
+
+void SmartColor_Init(SmartColor* const me, ColorType val, ColorType low,
+
+ColorType high, struct AlarmManager* errMgr);
+
+void SmartColor_Cleanup(SmartColor* const me);
+/* Operations */
+
+ErrorCodeType SmartColor_checkValidity(SmartColor* const me);
+
+int SmartColor_cmp(SmartColor* const me, SmartColor s);
+
+void SmartColor_errorHandler(SmartColor* const me, ErrorCodeType err);
+
+ErrorCodeType SmartColor_getErrorCode(SmartColor* const me);
+
+ColorType SmartColor_getHighBoundary(SmartColor* const me);
+
+ColorType SmartColor_getLowBoundary(SmartColor* const me);
+
+ColorType SmartColor_getPrimitive(SmartColor* const me);
+
+SmartColor SmartColor_getValue(SmartColor* const me);
+
+int SmartColor_pCmp(SmartColor* const me, SmartInt s);
+
+void SmartColor_setHighBoundary(SmartColor* const me, ColorType high);
+
+void SmartColor_setLowBoundary(SmartColor* const me, ColorType low);
+
+ErrorCodeType SmartColor_setPrimitive(SmartColor* const me, ColorType p);
+
+ErrorCodeType SmartColor_setValue(SmartColor* const me, SmartColor s);
+
+struct AlarmManager* SmartColor_getItsAlarmManager(const SmartColor* const me);
+
+void SmartColor_setItsAlarmManager(SmartColor* const me,
+
+struct AlarmManager* p_AlarmManager);
+
+SmartColor * SmartColor_Create(ColorType val, ColorType low, ColorType high, struct
+AlarmManager* errMgr);
+
+void SmartColor_Destroy(SmartColor* const me);
+
+#endif
+
+Code Listing 6-10: SmartColor.h
+#include "SmartColor.h"
+
+#include "AlarmManager.h"
+
+static void cleanUpRelations(SmartColor* const me);
+
+void SmartColor_Init(SmartColor* const me, ColorType val, ColorType low, ColorType high,
+struct AlarmManager* errMgr) {
+
+me->errorCode = NO_ERRORS;
+
+me->itsAlarmManager = NULL;
+ 
+ me->lowRange = low;
+
+me->highRange = high;
+
+me->value = val;
+
+me->itsAlarmManager = errMgr;
+
+}
+void SmartColor_Cleanup(SmartColor* const me) {
+cleanUpRelations(me);
+}
+ErrorCodeType SmartColor_checkValidity(SmartColor* const me) {
+if (me->value < me->lowRange)
+return BELOW_RANGE;
+else if (me->value > me->highRange)
+return ABOVE_RANGE;
+else
+return NO_ERRORS;
+}
+int SmartColor_cmp(SmartColor* const me, SmartColor s) {
+return memcmp(me, &s, sizeof(s));
+}
+void SmartColor_errorHandler(SmartColor* const me, ErrorCodeType err) {
+AlarmManager_addAlarm(me->itsAlarmManager, err);
+}
+ErrorCodeType SmartColor_getErrorCode(SmartColor* const me) {
+return me->errorCode;
+}
+ColorType SmartColor_getHighBoundary(SmartColor* const me) {
+return me->highRange;
+}
+ColorType SmartColor_getLowBoundary(SmartColor* const me) {
+return me->lowRange;
+}
+ColorType SmartColor_getPrimitive(SmartColor* const me) {
+return me->value;
+}
+SmartColor SmartColor_getValue(SmartColor* const me) {
+return *me;
+}
+int SmartColor_pCmp(SmartColor* const me, SmartInt s) {
+ColorType a = SmartInt_getPrimitive(&s);
+return memcmp(&me->value, &a, sizeof(me->value));
+}
+void SmartColor_setHighBoundary(SmartColor* const me, ColorType high) {
+me->highRange = high;
+}
+void SmartColor_setLowBoundary(SmartColor* const me, ColorType low) {
+me->lowRange = low;
+}
+ErrorCodeType SmartColor_setPrimitive(SmartColor* const me, ColorType p) {
+me->errorCode = NO_ERRORS;
+if (p < me->lowRange) {
+
+me->errorCode = BELOW_RANGE;
+
+AlarmManager_addAlarm(me->itsAlarmManager, me->errorCode);
+
+}
+
+else if (p > me->highRange) {
+
+me->errorCode = ABOVE_RANGE;
+
+AlarmManager_addAlarm(me->itsAlarmManager, me->errorCode);
+
+}
+
+else
+
+me->value = p;
+
+return me->errorCode;
+}
+ErrorCodeType SmartColor_setValue(SmartColor* const me, SmartColor s) {
+me->errorCode = SmartColor_checkValidity(&s);
+if (me->errorCode == NO_ERRORS)
+*me = s;
+else
+SmartColor_errorHandler(me, me->errorCode);
+return me->errorCode;
+}
+struct AlarmManager* SmartColor_getItsAlarmManager(const SmartColor* const me) {
+return (struct AlarmManager*)me->itsAlarmManager;
+}
+void SmartColor_setItsAlarmManager(SmartColor* const me, struct AlarmManager* p_AlarmManager) {
+me->itsAlarmManager = p_AlarmManager;
+}
+SmartColor * SmartColor_Create(ColorType val, ColorType low, ColorType high, struct
+AlarmManager* errMgr) {
+SmartColor* me = (SmartColor *) malloc(sizeof(SmartColor));
+if(me!=NULL)
+SmartColor_Init(me, val, low, high, errMgr);
+return me;
+}
+void SmartColor_Destroy(SmartColor* const me) {
+if(me!=NULL)
+SmartColor_Cleanup(me);
+free(me);
+}
+static void cleanUpRelations(SmartColor* const me) {
+if(me->itsAlarmManager != NULL)
+
+me->itsAlarmManager = NULL;
+
+}
+
+Code Listing 6-11: SmartColor.c
+Finally, the PatientDataClass uses these types to store values. In this case, it provides the
+access functions for the primitive types to its clients but uses smart data types for itself.
+#ifndef PatientDataClass_H
+
+#define PatientDataClass_H
+
+#include "SmartDataExample.h"
+
+#include "AlarmManager.h"
+
+#include "SmartColor.h"
+
+#include "SmartInt.h"
+
+typedef struct PatientDataClass PatientDataClass;
+struct PatientDataClass {
+
+SmartInt age;
+
+SmartColor backgroundColor;
+
+SmartColor foregroundColor;
+
+SmartInt heartRate;
+
+char name[100];
+
+long patientID;
+
+SmartInt weight;
+
+};
+/* Constructors and destructors:*/
+
+void PatientDataClass_Init(PatientDataClass* const me, AlarmManager* errMgr);
+
+void PatientDataClass_Cleanup(PatientDataClass* const me);
+/* Operations */
+
+ErrorCodeType PatientDataClass_checkAllData(PatientDataClass* const me);
+
+int PatientDataClass_getAge(PatientDataClass* const me);
+ColorType PatientDataClass_getBColor(PatientDataClass* const me);
+ColorType PatientDataClass_getFColor(PatientDataClass* const me);
+int PatientDataClass_getHeartRate(PatientDataClass* const me);
+char* PatientDataClass_getName(PatientDataClass* const me);
+int PatientDataClass_getWeight(PatientDataClass* const me);
+void PatientDataClass_setAge(PatientDataClass* const me, int a);
+void PatientDataClass_setBColor(PatientDataClass* const me, ColorType bc);
+void PatientDataClass_setFColor(PatientDataClass* const me, ColorType fc);
+void PatientDataClass_setHeartRate(PatientDataClass* const me, int hr);
+void PatientDataClass_setName(PatientDataClass* const me, char* n);
+void PatientDataClass_setWeight(PatientDataClass* const me, int w);
+PatientDataClass * PatientDataClass_Create(AlarmManager* errMgr);
+void PatientDataClass_Destroy(PatientDataClass* const me);
+
+#endif
+
+Code Listing 6-12: PatientDataClass.h
+#include "PatientDataClass.h"
+
+void PatientDataClass_Init(PatientDataClass* const me,
+
+AlarmManager* errMgr) {
+
+strcpy(me->name, " ");
+
+me->patientID = 0;
+
+/* initialize smart variables */
+
+SmartInt_Init(&me->weight, 0, 0, 500, errMgr);
+
+SmartInt_Init(&me->age, 0, 0, 130, errMgr);
+
+SmartInt_Init(&me->heartRate, 0, 0, 400, errMgr);
+
+SmartColor_Init(&me->foregroundColor, WHITE, BLACK, WHITE, errMgr);
+
+SmartColor_Init(&me->backgroundColor, BLACK, BLACK, WHITE, errMgr);
+
+}
+void PatientDataClass_Cleanup(PatientDataClass* const me) {
+
+}
+
+ErrorCodeType PatientDataClass_checkAllData(PatientDataClass* const me) {
+ErrorCodeType res;
+res = SmartInt_checkValidity(&me->weight);
+if (res != NO_ERRORS)
+return res;
+
+res = SmartInt_checkValidity(&me->age);
+
+if (res != NO_ERRORS)
+
+return res;
+
+res = SmartInt_checkValidity(&me->heartRate);
+
+if (res != NO_ERRORS)
+
+return res;
+
+res = SmartColor_checkValidity(&me->foregroundColor);
+
+if (res != NO_ERRORS)
+
+return res;
+
+res = SmartColor_checkValidity(&me->backgroundColor);
+
+if (res != NO_ERRORS)
+
+return res;
+
+}
+
+int PatientDataClass_getAge(PatientDataClass* const me) {
+
+return SmartInt_getPrimitive(&me->age);
+
+}
+
+ColorType PatientDataClass_getBColor(PatientDataClass* const me) {
+
+return SmartColor_getPrimitive(&me->backgroundColor);
+
+}
+ColorType PatientDataClass_getFColor(PatientDataClass* const me) {
+
+return SmartColor_getPrimitive(&me->foregroundColor);
+
+}
+int PatientDataClass_getHeartRate(PatientDataClass* const me) {
+
+return SmartInt_getPrimitive(&me->heartRate);
+
+}
+char* PatientDataClass_getName(PatientDataClass* const me) {
+
+return me->name;
+
+}
+int PatientDataClass_getWeight(PatientDataClass* const me) {
+
+return SmartInt_getPrimitive(&me->weight);
+
+}
+void PatientDataClass_setAge(PatientDataClass* const me, int a) {
+
+SmartInt_setPrimitive(&me->age, a);
+
+}
+void PatientDataClass_setBColor(PatientDataClass* const me, ColorType bc) {
+SmartColor_setPrimitive(&me->backgroundColor, bc);
+}
+void PatientDataClass_setFColor(PatientDataClass* const me, ColorType fc) {
+SmartColor_setPrimitive(&me->foregroundColor, fc);
+}
+void PatientDataClass_setHeartRate(PatientDataClass* const me, int hr) {
+SmartInt_setPrimitive(&me->heartRate, hr);
+}
+void PatientDataClass_setName(PatientDataClass* const me, char* n) {
+
+strcpy(me->name, n);
+
+}
+void PatientDataClass_setWeight(PatientDataClass* const me, int w) {
+
+SmartInt_setPrimitive(&me->weight, w);
+
+}
+PatientDataClass * PatientDataClass_Create(AlarmManager* errMgr) {
+
+PatientDataClass* me = (PatientDataClass *)
+
+malloc(sizeof(PatientDataClass));
+
+if(me!=NULL)
+
+PatientDataClass_Init(me, errMgr);
+
+return me;
+}
+void PatientDataClass_Destroy(PatientDataClass* const me) {
+if(me!=NULL)
+
+PatientDataClass_Cleanup(me);
+
+free(me);
+
+}
+
+Code Listing 6-13: PatientDataClass.c
+

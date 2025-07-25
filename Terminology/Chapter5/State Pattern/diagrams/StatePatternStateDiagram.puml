@@ -1,0 +1,57 @@
+@startuml StatePattern_StateDiagram
+!theme plain
+
+title State Pattern - State Transition Diagram\n(Number Tokenizer)
+
+[*] --> NoNumberState : start
+
+state NoNumberState {
+    NoNumberState : entry / setResult(0.0)
+    NoNumberState : do / wait for input
+}
+
+state ProcessingWholeState {
+    ProcessingWholeState : entry / result = result*10 + digit
+    ProcessingWholeState : do / process whole digits
+}
+
+state ProcessingFractionState {
+    ProcessingFractionState : entry / setTensPlace(10.0)
+    ProcessingFractionState : do / process fractional digits
+}
+
+NoNumberState --> ProcessingWholeState : digit / setChar(digit), setTensPlace(10.0)
+NoNumberState --> NoNumberState : whitespace / discard
+NoNumberState --> NoNumberState : dot / error, discard
+NoNumberState --> NoNumberState : end / discard
+
+ProcessingWholeState --> ProcessingWholeState : digit / setChar(digit)
+ProcessingWholeState --> ProcessingFractionState : dot / transition
+ProcessingWholeState --> NoNumberState : whitespace / printResult()
+ProcessingWholeState --> NoNumberState : end / printResult()
+
+ProcessingFractionState --> ProcessingFractionState : digit / updateFraction()
+ProcessingFractionState --> ProcessingFractionState : dot / error, discard
+ProcessingFractionState --> NoNumberState : whitespace / printResult()
+ProcessingFractionState --> NoNumberState : end / printResult()
+
+note right of NoNumberState
+    Initial state
+    Waits for first digit
+    Rejects dots and other chars
+end note
+
+note right of ProcessingWholeState
+    Processes integer part
+    Can transition to fraction
+    on dot or complete on
+    whitespace/end
+end note
+
+note right of ProcessingFractionState
+    Processes decimal part
+    Rejects additional dots
+    Completes on whitespace/end
+end note
+
+@enduml

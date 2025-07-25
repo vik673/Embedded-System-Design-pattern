@@ -1,0 +1,67 @@
+@startuml SequenceDiagram
+!theme plain
+title UML Sequence Diagram - Sensor Data Collection
+
+actor User
+participant "controller : SensorController" as Controller
+participant "sensor1 : SensorClass" as Sensor1
+participant "sensor2 : SensorClass" as Sensor2
+participant "logger : DataLogger" as Logger
+participant "Environment" as Env
+
+User -> Controller : readAllSensors()
+activate Controller
+
+note right of Controller : Controller processes\neach sensor sequentially
+
+Controller -> Sensor1 : SensorClass_getData()
+activate Sensor1
+
+Sensor1 -> Sensor1 : validateReading(value)
+note right of Sensor1 : Internal validation
+
+Sensor1 --> Controller : sensorValue1
+deactivate Sensor1
+
+Controller -> Logger : logData(sensor1)
+activate Logger
+
+Logger -> Logger : createLogEntry()
+note right of Logger : Creates timestamped entry
+
+Logger --> Controller : success
+deactivate Logger
+
+Controller -> Sensor2 : SensorClass_getData()
+activate Sensor2
+
+Sensor2 -> Env : <<hardware read>>
+Env --> Sensor2 : rawValue
+
+Sensor2 -> Sensor2 : validateReading(rawValue)
+
+alt value is valid
+    Sensor2 --> Controller : sensorValue2
+    Controller -> Logger : logData(sensor2)
+    activate Logger
+    Logger --> Controller : success
+    deactivate Logger
+else value is invalid
+    Sensor2 --> Controller : errorCode
+    note right of Controller : Error handling logic
+    Controller -> Controller : handleSensorError(sensor2)
+end
+
+Controller -> Controller : checkAlerts()
+note right of Controller : Check if any readings\nexceed alert thresholds
+
+opt alert condition met
+    Controller -> User : <<alert notification>>
+end
+
+Controller --> User : operationComplete
+deactivate Controller
+
+note over User, Env : Condition Mark: All sensors read successfully\nController state: MONITORING
+
+@enduml

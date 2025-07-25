@@ -1,0 +1,166 @@
+@startuml StateTablePattern_SequenceDiagram
+
+!theme plain
+title State Table Design Pattern - Sequence Diagram\nParsing "12.3"
+
+' Participants
+actor Client
+participant "tokenizer:\nStateTableTokenizer" as STT
+participant "context:\nTokenizerContext" as TC
+participant "stateTable:\nStateTableEntry[][]" as ST
+participant "mutex:\nMutex" as Mutex
+
+' Styling
+skinparam participant {
+    BackgroundColor LightBlue
+    BorderColor Black
+}
+skinparam actor {
+    BackgroundColor LightYellow
+}
+
+== Initialization ==
+Client -> STT: Create()
+activate STT
+STT -> TC: create context
+activate TC
+STT -> ST: initializeStateTable()
+activate ST
+note right: Initialize all state transitions\nand action function pointers
+return initialized table
+STT -> TC: currentState = STATE_NONUMBER
+return tokenizer
+
+Client -> Mutex: Create()
+activate Mutex
+return mutex
+
+Client -> STT: SetMutex(mutex)
+STT -> TC: mutex = mutex
+deactivate TC
+
+== Processing Character '1' ==
+Client -> STT: ProcessDigit('1')
+activate STT
+STT -> TC: mutex.lock()
+STT -> ST: lookup[STATE_NONUMBER][EVENT_DIGIT]
+activate ST
+return {STATE_GOTNUMBER_WHOLE, ACTION_START_NUMBER, action_start_number}
+
+STT -> TC: action_start_number(context, '1')
+activate TC
+note right: result = digit('1') = 1\ntensPlace = 10.0
+return
+
+STT -> TC: currentState = STATE_GOTNUMBER_WHOLE
+STT -> TC: mutex.release()
+return
+deactivate STT
+
+== Processing Character '2' ==
+Client -> STT: ProcessDigit('2')
+activate STT
+STT -> TC: mutex.lock()
+STT -> ST: lookup[STATE_GOTNUMBER_WHOLE][EVENT_DIGIT]
+activate ST
+return {STATE_GOTNUMBER_WHOLE, ACTION_ADD_DIGIT_WHOLE, action_add_digit_whole}
+
+STT -> TC: action_add_digit_whole(context, '2')
+activate TC
+note right: result = 1 * 10 + 2 = 12
+return
+
+STT -> TC: currentState = STATE_GOTNUMBER_WHOLE
+STT -> TC: mutex.release()
+return
+deactivate STT
+
+== Processing Decimal Point '.' ==
+Client -> STT: ProcessDot()
+activate STT
+STT -> TC: mutex.lock()
+STT -> ST: lookup[STATE_GOTNUMBER_WHOLE][EVENT_DOT]
+activate ST
+return {STATE_GOTNUMBER_FRACTIONAL, ACTION_START_FRACTIONAL, action_start_fractional}
+
+STT -> TC: action_start_fractional(context, '.')
+activate TC
+note right: tensPlace = 10.0\n(reset for fractional processing)
+return
+
+STT -> TC: currentState = STATE_GOTNUMBER_FRACTIONAL
+STT -> TC: mutex.release()
+return
+deactivate STT
+
+== Processing Character '3' ==
+Client -> STT: ProcessDigit('3')
+activate STT
+STT -> TC: mutex.lock()
+STT -> ST: lookup[STATE_GOTNUMBER_FRACTIONAL][EVENT_DIGIT]
+activate ST
+return {STATE_GOTNUMBER_FRACTIONAL, ACTION_ADD_DIGIT_FRACTIONAL, action_add_digit_fractional}
+
+STT -> TC: action_add_digit_fractional(context, '3')
+activate TC
+note right: result = 12 + 3/10 = 12.3\ntensPlace = 100
+return
+
+STT -> TC: currentState = STATE_GOTNUMBER_FRACTIONAL
+STT -> TC: mutex.release()
+return
+deactivate STT
+
+== End of String ==
+Client -> STT: ProcessEndOfString()
+activate STT
+STT -> TC: mutex.lock()
+STT -> ST: lookup[STATE_GOTNUMBER_FRACTIONAL][EVENT_END_OF_STRING]
+activate ST
+return {STATE_NONUMBER, ACTION_FINISH_NUMBER, action_finish_number}
+
+STT -> TC: action_finish_number(context, '\0')
+activate TC
+note right: print("Finished number: 12.3")
+return
+
+STT -> TC: currentState = STATE_NONUMBER
+STT -> TC: mutex.release()
+return "Final Number: 12.3"
+deactivate STT
+
+== Statistics and Cleanup ==
+Client -> STT: PrintStatistics()
+activate STT
+STT -> TC: print transition count, event counts, etc.
+return
+deactivate STT
+
+Client -> STT: Destroy()
+activate STT
+STT -> TC: cleanup()
+deactivate TC
+deactivate ST
+deactivate STT
+
+Client -> Mutex: Destroy()
+deactivate Mutex
+
+note over Client, Mutex
+  <b>State Table Pattern Key Points:</b>
+  
+  1. <b>Table Lookup:</b> O(1) time to find next state and action
+  2. <b>Function Pointers:</b> Actions executed via function pointers
+  3. <b>Data-Driven:</b> Behavior controlled by table data, not code
+  4. <b>Consistent Processing:</b> All events follow same pattern
+  5. <b>Thread Safety:</b> Mutex ensures atomic transitions
+  6. <b>Statistics:</b> Easy to track and analyze state machine behavior
+  
+  <b>Advantages over switch-case:</b>
+  • More maintainable and modifiable
+  • Better performance for complex state machines
+  • Runtime analysis capabilities
+  • Clear separation of concerns
+end note
+
+@enduml

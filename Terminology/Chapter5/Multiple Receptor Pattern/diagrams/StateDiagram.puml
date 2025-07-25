@@ -1,0 +1,105 @@
+@startuml MultipleReceptorPattern_StateDiagram
+
+!theme plain
+title Multiple Event Receptor Pattern - State Machine Diagram
+
+' Styling
+skinparam state {
+    BackgroundColor LightBlue
+    BorderColor Black
+    FontSize 12
+}
+
+' Initial state
+[*] --> NONUMBER_STATE : [Initial]
+
+' Main states
+state NONUMBER_STATE {
+    NONUMBER_STATE : entry / result = 0.0
+    NONUMBER_STATE : This state indicates no number\nis currently being processed
+}
+
+state GOTNUMBER_STATE {
+    GOTNUMBER_STATE : entry / tensPlace = 10.0
+    GOTNUMBER_STATE : exit / subStateID = NULL_SSTATE
+    
+    ' Nested substates
+    [*] --> PROCESSINGWHOLEPART_SSTATE
+    
+    state PROCESSINGWHOLEPART_SSTATE {
+        PROCESSINGWHOLEPART_SSTATE : entry / result = result*10 + digit(ch)
+        PROCESSINGWHOLEPART_SSTATE : Processing the whole number part\n(digits before decimal point)
+    }
+    
+    state PROCESSINGFRACTIONALPART_SSTATE {
+        PROCESSINGFRACTIONALPART_SSTATE : Processing the fractional part\n(digits after decimal point)
+    }
+    
+    PROCESSINGWHOLEPART_SSTATE --> PROCESSINGFRACTIONALPART_SSTATE : evDot() /\nch = '.'
+    PROCESSINGWHOLEPART_SSTATE --> PROCESSINGWHOLEPART_SSTATE : evDigit(c) /\nch = c
+    PROCESSINGFRACTIONALPART_SSTATE --> PROCESSINGFRACTIONALPART_SSTATE : evDigit(c) /\nch = c,\nresult += digit(c)/tensPlace,\ntensPlace *= 10
+}
+
+' Transitions between main states
+NONUMBER_STATE --> GOTNUMBER_STATE : evDigit(c) /\nch = c
+NONUMBER_STATE --> GOTNUMBER_STATE : evDot() /\nch = '.'
+
+GOTNUMBER_STATE --> NONUMBER_STATE : evWhiteSpace() /\nprint("Number: " + result)
+GOTNUMBER_STATE --> NONUMBER_STATE : evEndOfString() /\nprint("Final Number: " + result)
+
+' Self-transitions
+NONUMBER_STATE --> NONUMBER_STATE : evWhiteSpace()
+NONUMBER_STATE --> NONUMBER_STATE : evEndOfString()
+
+' Notes explaining the pattern
+note right of NONUMBER_STATE
+  <b>Multiple Event Receptors:</b>
+  • evDigit(c)
+  • evDot()
+  • evWhiteSpace()
+  • evEndOfString()
+  
+  Each event is handled by a
+  dedicated receptor function.
+end note
+
+note bottom of GOTNUMBER_STATE
+  <b>Hierarchical States:</b>
+  
+  The GOTNUMBER_STATE contains
+  two substates that handle
+  different parts of number parsing.
+  
+  This provides fine-grained control
+  over the parsing process.
+end note
+
+note top of PROCESSINGFRACTIONALPART_SSTATE
+  <b>Fractional Processing:</b>
+  
+  When processing fractional digits:
+  1. Add digit value divided by tensPlace
+  2. Multiply tensPlace by 10 for next digit
+  
+  Example: 0.123
+  • '1': result += 1/10 = 0.1, tensPlace = 100
+  • '2': result += 2/100 = 0.12, tensPlace = 1000  
+  • '3': result += 3/1000 = 0.123, tensPlace = 10000
+end note
+
+' Legend
+legend bottom
+  <b>Event Legend:</b>
+  • evDigit(c) - Process digit character
+  • evDot() - Process decimal point
+  • evWhiteSpace() - Process whitespace (number separator)
+  • evEndOfString() - Signal end of input
+  
+  <b>Pattern Benefits:</b>
+  • Simple event handling (one function per event)
+  • Clear separation of concerns
+  • Easy to extend with new events
+  • Thread-safe with mutex protection
+endlegend
+
+@enduml
