@@ -1,0 +1,44 @@
+@startuml ChannelPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "Client" as Client
+participant "EMGChannel" as Channel
+participant "EMGSensorDeviceDriver" as Sensor
+participant "ConvertToFrequency" as Converter
+participant "movingAverageFilter" as Filter
+participant "CalculateColor" as ColorCalc
+participant "LightDeviceDriver" as LightDriver
+
+Client -> Channel : acquireData()
+activate Channel
+Channel -> Sensor : acquireData()
+activate Sensor
+Sensor --> Channel : raw voltage
+deactivate Sensor
+Channel -> Converter : computeFreq(raw voltage)
+activate Converter
+Converter --> Channel : computed frequency
+deactivate Converter
+Channel -> Filter : filter(computed frequency)
+activate Filter
+Filter --> Channel : filtered frequency
+deactivate Filter
+Channel -> ColorCalc : freqToColor(filtered frequency)
+activate ColorCalc
+ColorCalc --> Channel : RGB value
+deactivate ColorCalc
+Channel -> LightDriver : setLightColor(RGB value)
+activate LightDriver
+LightDriver --> Channel : (acknowledge)
+deactivate LightDriver
+Channel --> Client : (Processed output)
+deactivate Channel
+
+@enduml

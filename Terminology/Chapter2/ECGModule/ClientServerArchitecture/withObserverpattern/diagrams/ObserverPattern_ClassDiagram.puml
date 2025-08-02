@@ -1,0 +1,47 @@
+@startuml ObserverPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class AbstractSubject {
+    + subscribe(observer : AbstractObserver)
+    + unsubscribe(observer : AbstractObserver)
+    + notify()
+    - observers : NotificationHandle*
+}
+
+class AbstractObserver {
+    + update(data : TimeMarkedData)
+}
+
+class NotificationHandle {
+    + updateAddr : UpdateFuncPtr
+    + itsNotificationHandle : NotificationHandle*
+}
+
+class ConcreteSubject <<TMDQueue>> {
+    + insert(data : TimeMarkedData)
+    + remove(index : int) : TimeMarkedData
+    + notify(data : TimeMarkedData)
+    - buffer : TimeMarkedData[QUEUE_SIZE]
+    - head : int
+    - size : int
+    - nSubscribers : int
+}
+
+class ConcreteObserver <<HistogramDisplay>> {
+    + update(data : TimeMarkedData)
+    + Init()
+    + Cleanup()
+    - itsTMDQueue : TMDQueue*
+}
+
+AbstractSubject <|-- ConcreteSubject
+AbstractObserver <|-- ConcreteObserver
+AbstractSubject --> NotificationHandle : manages
+NotificationHandle --> AbstractObserver : callback
+
+@enduml

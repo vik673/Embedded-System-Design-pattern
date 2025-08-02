@@ -1,0 +1,71 @@
+@startuml StatePattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class Context {
+    + ch: char
+    + result: double
+    + tensPlace: double
+    + currentState: TSTATETYPE
+    + stateList[ ]: State* 
+    + evDigit(c: char)
+    + evDot()
+    + evEndOfString()
+    + evWhiteSpace()
+    // ...existing code...
+}
+
+abstract class State {
+    + aSet: StateActionSet
+    + itsContext: Context*
+    + entryAction()
+    + exitAction()
+    + evDigit(c: char): int
+    + evDot(): int
+    + evEndOfString(): int
+    + evWhiteSpace(): int
+    // ...existing code...
+}
+
+class NoNumberState {
+    // Implements State interface
+    // ...existing code...
+}
+
+class GN_ProcessingWholeState {
+    // Implements State interface
+    // ...existing code...
+}
+
+class GN_ProcessingFractionState {
+    // Implements State interface
+    // ...existing code...
+}
+
+class StateActionSet {
+    + entryAction: ActionPtr0
+    + exitAction: ActionPtr0
+    + evDigitHandler: ActionPtr1
+    + evDotHandler: ActionPtr0
+    + evEOSHandler: ActionPtr0
+    + evWSHandler: ActionPtr0
+}
+
+Context "1" o-- "1..*" State : stateList
+State <|-- NoNumberState
+State <|-- GN_ProcessingWholeState
+State <|-- GN_ProcessingFractionState
+Context --> StateActionSet : uses
+
+enum TSTATETYPE {
+    NULL_STATE,
+    NONUMBER_STATE,
+    GN_PROCESSINGWHOLEPART_STATE,
+    GN_PROCESSINGFRACTIONALPART_STATE
+}
+
+@enduml

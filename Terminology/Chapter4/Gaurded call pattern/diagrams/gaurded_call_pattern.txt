@@ -1,0 +1,821 @@
+Guarded Call Pattern
+The Guarded Call Pattern serializes access to a set of services that could potentially interfere
+with each other in some way if called simultaneously by multiple callers. In this pattern, access
+is serialized by providing a locking mechanism that prevents other threads from invoking the
+services while locked.
+4.5.1 Abstract
+The Guarded Call Pattern uses semaphores to protect a related set of services (functions) from
+simultaneous access by multiple clients in a preemptive multitasking environment, in a process
+known as mutual exclusion. The Guarded Call Pattern provides timely access to services,
+provided that they are not in use by other tasks. However, if not mixed with other patterns, the
+use of this pattern can lead to unbounded priority inversion, such as that shown in Figure 4-5.
+4.5.2 Problem
+The problem this pattern addresses is the need for a timely synchronization or data exchange
+between threads. In such cases, it may not be possible to wait for an asynchronous (queuing)
+rendezvous. A synchronous (function call) rendezvous can be made more timely, but this must
+be done carefully to avoid data corruption and erroneous computation.
+4.5.3 Pattern Structure
+The pattern structure for this pattern is shown in Figure 4-15. In this case, multiple
+PreemptiveTasks access the GuardedResource through its functions. Inside those
+functions, calls are made to lock and release the resource. The scheduler supports blocking by
+placing a task on the blocked queue when it invokes a locked semaphore and unblocks it when
+that semaphore is released. The scheduler must implement the semaphore lock() function as a
+critical region to eliminate the possibility of race conditions.
+4.5.4 Collaboration Roles
+This section describes the roles for this pattern.
+4.5.4.1 GuardedResource
+The GuardedResource is a shared resource that employs mutex semaphores to enforce
+mutual exclusion of access to its methods. Inside the relevant functions14, and prior to the
+access of the resource per se, a call is made to the lock() function of the associated
+Semaphore instance. if the Semaphore is in the unlocked state, then it becomes locked; if it is
+in the locked state, then the Semaphore signals the StaticPriorityScheduler to block
+the currently running task. It is important that the relevant functions of a specific resource
+instance must all share the same instance of the Semaphore class. This ensures that they are
+protected together as a unit from simultaneous access by multiple PreemptiveTasks.
+4.5.4.2 PreemptiveTask
+The PreemptiveTask represents an «active» class that is run via a preemptive multitasking
+scheduler. It accesses the GuardedResource by invoking the latter’s functions, which in turn
+are protected by the Semaphore.
+4.5.4.3 Semaphore
+The Semaphore is a mutual exclusion semaphore class that serializes access to a
+GuardedResource. The guarded functions of the GuardedResource invoke the lock()
+function of the Semaphore whenever they are called and release()once the service is
+complete. Other client threads that attempt to invoke a service when its associated Semaphore
+is locked become blocked until the Semaphore is unlocked. The blocking is performed when
+the Semaphore signals the StaticPriorotyScheduler that a call attempt was made by the
+currently active thread. The mutexID identifies which Mutex is blocking the task. This
+element is usually provided by the RTOS. Note this is the same element that appears in the
+Static Priority Pattern earlier in this chapter.
+4.5.4.4 StaticPriorityScheduler
+This object orchestrates the execution of multiple threads based on their priority. In this pattern,
+we are focusing on the responsibility (not shown) of this element to block a task if it attempts to
+lock an already-locked Semaphore and to unblock all tasks blocked on the mutexID when
+this lock is released. This element is usually provided by the RTOS. Note this is the same
+element that appears in the Static Priority Pattern earlier in this chapter.
+4.5.5 Consequences
+This pattern provides a timely access to a resource and at the same time prevents multiple
+simultaneous accesses that can result in data corruption and system misbehavior. If the resource
+is not locked, then access proceeds without delay. If the resource is currently locked, then the
+caller must block until the lock on the resource is released. Naïve use can result in unbounded
+priority inversion in the manner described in Figure 4-5. See Section 4.5.7 Related Patterns for
+a discussion of an RTOS-supported solution.
+6 Implementation Strategies
+The tricky part of implementing the pattern lies in the implementation of the Mutex. Usually,
+the RTOS will provide a Semaphore instance, accessible through operations such as:
+•	 OSSemaphore OS_create_semaphore()
+creates a semaphore and returns a pointer to it.
+•	 void OS_destroy_semaphore(OSSemaphore*)
+destroys the semaphore pointed at.
+•	 void OS_lock_semaphore(OSSemaphore*)
+locks the relevant semaphore. If called with an unlocked OSSemaphore, it becomes
+locked. If already locked, then it blocks the current task with its internally-stored mutexID.
+The scheduler must store the task data including the continuation entry point and stack.
+void OS_release_semaphore(OSSemaphore *)
+releases the lock on the relevant semaphore and unblocks all tasks blocked on its
+internally-stored MutexID.
+Of course, the names and parameters of the services are OS specific.
+4.5.7 Related Patterns
+The Guarded Call Pattern is used with Static Priority or other preemptive multitasking
+environments. It is a less draconian policy than is enforced by the Critical Region Pattern
+(above) because it does not interfere with the execution of higher priority tasks that don’t need
+access to the resource. It is more responsive than the Queuing Pattern (below) because it
+doesn’t need to wait for the resource’s thread to become active to check for the request.
+There is one very important class of variants of this pattern that solves the problem of unbounded
+priority inversion that uses a concept of priority inheritance. The basic idea is that each resource
+has an addition attribute (variable) knows as its priority ceiling, which is equal to the priority of
+the highest-priority task that can ever access the resource. The underlying problem with naïve
+implementation of the Guarded Call Pattern is that intermediate priority tasks that don’t need the
+resource can preempt the low-priority task that currently owns the resource needed by the blocked
+high-priority task. There can be any number of such intermediate-priority tasks, leading to
+chained blocking of the high priority task. The priority inheritance solution is to elevate the
+priority of the low-priority task as soon as the high-priority task attempts to lock the resource
+owned by the low-priority task. This can be done by creating a semaphore that implements the
+priority inversion. This is the approach taken, for example, by VxWorks™ from Wind River,
+which implements a set of mutex semaphore functions such as
+SEM_ID semM;
+
+semM = semMCreate(. . .);
+
+semTake(semM, FLAG);
+
+semGive(semM);
+
+Values for FLAG include WAIT_FOREVER, and – important to this discussion – SEM_
+INVERSION_SAFE. When the latter flag value is used, VxWorks’ mutex semaphores
+implement priority inheritance.
+In Figure 4-5, if the locking mutex is implemented in this way, the following sequence of
+events holds:
+1.	 Task Z runs and locks Resource R at its nominal priority of 100.
+2.	 Task A runs at priority 1, and attempts to lock the mutex guarding R and blocks. At this
+point, the priority of Task Z is elevated to that of Task A (i.e., priority 1).
+3.	 Task Y becomes ready to run. With a normal naïve mutex, it would run and preempt
+Task Z. However, its priority (99) is less than the priority at which Task Z is running so
+it remains on the Task Ready queue.
+4.	 Task Z completes its use of the Resource R and unlocks it. At this point, the priority of
+Task Z is demoted to its nominal priority (100).
+5.	 Task A unblocks and now uses the resource and completes within its deadline.
+6.	 Task Y now, being the highest ready task, runs.
+7.	 Task Y completes, and finally, Task Z is allowed to complete its execution.
+You can see in this simple example how priority inheritance prevented the unbounded priority
+inversion that a normal counting semaphore would allow.
+
+Example
+The example shown in Figure 4-16 is a portion of a flight control system. In it, the ship
+KinematicData (position and attitude) are managed as a shared resource for multiple clients.
+Since the setting and getting of these values is not an atomic process, there is a possibility
+of displaying invalid data if, for example, the FlightDataDisplay showFlightData()
+function is preempted to update the attitude data by the AttitudeController. The use of
+semaphores in the methods ensures that this cannot happen.
+The next several code listings (Code Listing 4-19 through Code Listing 4-30) give the code for
+the elements of the Guarded Call example in Figure 4-16. The first gives the specification for
+the OS calls used for the semaphores. The next four show the code for the complex data types
+Position and Attitude, respectively.
+Code Listing 4-23 and Code Listing 4-24 give the code for the resource (KinematicData)
+that uses the OSSemaphore to guard its operations to set and get that data. The initializer
+KinematicData_Init() creates a semaphore via a call to OS_create_semaphore()
+while the clean-up function KinematicData_CleanUp() calls OS_destroy_semaphore
+() to free up its memory. Its accessor and mutator methods to get and set attitude and
+position data all invoke the OS_lock_semaphore(), do their processing, and then invoke
+OS_release_semaphore().
+The code listings after that show the code for the clients: the FlightDataDisplay,
+AttitudeController, and Navigator. These all share the information stored in the
+KinematicData object and so must be protected from data corruption.
+
+#ifndef GuardedCallExample_H
+
+#define GuardedCallExample_H
+
+struct Attitude;
+
+struct AttitudeController;
+
+struct FlightDataDisplay;
+
+struct GuardTester;
+
+struct GuardedCallBuilder;
+
+struct KinematicData;
+
+struct Navigator;
+
+struct Position;
+
+/* OS provided types and functions */
+
+struct OSSemaphore;
+
+struct OSSemaphore* OS_create_semaphore(void);
+
+void OS_destroy_semaphore(struct OSSemaphore* sPtr);
+
+void OS_lock_semaphore(struct OSSemaphore* sPtr);
+
+void OS_release_semaphore(struct OSSemaphore* sPtr);
+
+#endif
+
+this is GuardedCallExample.h file.
+
+#ifndef Position_H
+
+#define Position_H
+
+#include "GuardedCallExample.h"
+typedef struct Position Position;
+struct Position {
+double altitude; /*# # attribute altitude */
+double latitude; /*# # attribute latitude */
+double longitude; /*# # attribute longitude */
+};
+/* Constructors and destructors:*/
+
+void Position_Init(Position* const me);
+
+void Position_Cleanup(Position* const me);
+
+/* Operations */
+
+double Position_getAltitude(Position* const me);
+
+double Position_getLatitude(Position* const me);
+
+double Position_getLongitude(Position* const me);
+
+void Position_setAltitude(Position* const me, double x);
+
+void Position_setLatitude(Position* const me, double x);
+
+void Position_setLongitude(Position* const me, double x);
+
+Position * Position_Create(void);
+
+void Position_Destroy(Position* const me);
+
+#endif
+
+This is Position.h file.
+
+#include "Position.h"
+void Position_Init(Position* const me) {
+
+}
+
+void Position_Cleanup(Position* const me) {
+
+}
+
+double Position_getAltitude(Position* const me) {
+
+return me->altitude;
+
+}
+
+double Position_getLatitude(Position* const me) {
+
+return me->latitude;
+
+}
+double Position_getLongitude(Position* const me) {
+
+return me->longitude;
+
+}
+void Position_setAltitude(Position* const me, double x) {
+me->altitude = x;
+}
+void Position_setLatitude(Position* const me, double x) {
+me->latitude = x;
+}
+void Position_setLongitude(Position* const me, double x) {
+me->longitude = x;
+}
+Position * Position_Create(void) {
+Position* me = (Position *) malloc(sizeof(Position));
+if(me!=NULL) {
+Position_Init(me);
+
+}
+
+return me;
+
+}
+
+void Position_Destroy(Position* const me) {
+
+if(me!=NULL) {
+
+Position_Cleanup(me);
+
+}
+
+free(me);
+
+}
+
+it is implementation file Position.c
+
+#ifndef Attitude_H
+
+#define Attitude_H
+
+#include "GuardedCallExample.h"
+typedef struct Attitude Attitude;
+struct Attitude {
+
+double pitch; /*## attribute pitch */
+
+double roll; /*## attribute roll */
+
+double yaw; /*## attribute yaw */
+
+};
+/* Constructors and destructors:*/
+
+void Attitude_Init(Attitude* const me);
+
+void Attitude_Cleanup(Attitude* const me);
+ 
+ /* Operations */
+
+double Attitude_getPitch(Attitude* const me);
+
+double Attitude_getRoll(Attitude* const me);
+
+double Attitude_getYaw(Attitude* const me);
+
+void Attitude_setPitch(Attitude* const me, double x);
+
+void Attitude_setRoll(Attitude* const me, double x);
+
+void Attitude_setYaw(Attitude* const me, double x);
+
+Attitude * Attitude_Create(void);
+
+void Attitude_Destroy(Attitude* const me);
+
+#endif
+
+this is Attitude.h file.
+
+#include "Attitude.h"
+void Attitude_Init(Attitude* const me) {
+
+}
+
+void Attitude_Cleanup(Attitude* const me) {
+
+}
+
+double Attitude_getPitch(Attitude* const me) {
+
+return me->pitch;
+
+}
+double Attitude_getRoll(Attitude* const me) {
+
+return me->roll;
+
+}
+double Attitude_getYaw(Attitude* const me) {
+
+return me->yaw;
+
+}
+void Attitude_setPitch(Attitude* const me, double x) {
+me->pitch = x;
+}
+void Attitude_setRoll(Attitude* const me, double x) {
+me->roll = x;
+}
+void Attitude_setYaw(Attitude* const me, double x) {
+me->yaw = x;
+}
+Attitude * Attitude_Create(void) {
+
+Attitude* me = (Attitude *) malloc(sizeof(Attitude));
+
+if(me!=NULL)
+
+{
+
+Attitude_Init(me);
+
+}
+
+return me;
+
+}
+
+void Attitude_Destroy(Attitude* const me) {
+
+if(me!=NULL)
+
+{
+
+Attitude_Cleanup(me);
+
+}
+
+free(me);
+
+}
+
+this is Attitude.c
+
+#ifndef KinematicData_H
+
+#define KinematicData_H
+
+#include "GuardedCallExample.h"
+
+#include "Attitude.h"
+
+#include "OSSemaphore.h"
+
+#include "Position.h"
+
+typedef struct KinematicData KinematicData;
+struct KinematicData {
+
+struct Attitude attitude;
+
+struct Position position;
+
+OSSemaphore* sema; /*## mutex semaphore */
+
+};
+/* Constructors and destructors:*/
+
+void KinematicData_Init(KinematicData* const me);
+
+void KinematicData_Cleanup(KinematicData* const me);
+
+/* Operations */
+Attitude KinematicData_getAttitude(KinematicData* const me);
+struct Position KinematicData_getPosition(KinematicData* const me);
+void KinematicData_setAttitude(KinematicData* const me, Attitude a);
+void KinematicData_setPosition(KinematicData* const me, Position p);
+KinematicData * KinematicData_Create(void);
+void KinematicData_Destroy(KinematicData* const me);
+#endif
+
+this is KinematicData.h file.
+
+#include "KinematicData.h"
+void KinematicData_Init(KinematicData* const me) {
+
+Attitude_Init(&(me->attitude));
+
+Position_Init(&(me->position));
+
+me->sema = OS_create_semaphore();
+
+}
+void KinematicData_Cleanup(KinematicData* const me) {
+
+OS_destroy_semaphore(me->sema);
+
+}
+
+struct Position KinematicData_getPosition(KinematicData* const me) {
+Position p;
+/* engage the lock */
+
+OS_lock_semaphore(me->sema);
+
+p = me->position;
+/* release the lock */
+
+OS_release_semaphore(me->sema);
+
+return p;
+
+}
+
+void KinematicData_setAttitude(KinematicData* const me, Attitude a) {
+/* engage the lock */
+OS_lock_semaphore(me->sema);
+me->attitude = a;
+/* release the lock */
+
+OS_release_semaphore(me->sema);
+
+}
+
+void KinematicData_setPosition(KinematicData* const me, Position p) {
+/* engage the lock */
+OS_lock_semaphore(me->sema);
+me->position = p;
+/* release the lock */
+
+OS_release_semaphore(me->sema);
+
+}
+KinematicData * KinematicData_Create(void) {
+
+KinematicData* me = (KinematicData *)
+
+malloc(sizeof(KinematicData));
+
+if(me!=NULL) {
+
+KinematicData_Init(me);
+
+}
+
+return me;
+
+}
+
+void KinematicData_Destroy(KinematicData* const me) {
+
+if(me!=NULL) {
+
+KinematicData_Cleanup(me);
+
+}
+
+free(me);
+
+}
+Attitude KinematicData_getAttitude(KinematicData* const me) {
+Attitude a;
+/* engage the lock */
+
+OS_lock_semaphore(me->sema);
+
+a = me->attitude;
+/* release the lock */
+
+OS_release_semaphore(me->sema);
+
+return a;
+
+}
+ 
+this is KinematicData.c file.
+
+#ifndef AttitudeController_H
+
+#define AttitudeController_H
+
+#include "GuardedCallExample.h"
+
+#include "Attitude.h"
+
+struct KinematicData;
+
+typedef struct AttitudeController AttitudeController;
+
+struct AttitudeController {
+
+struct Attitude ownShipAttitude;
+
+struct KinematicData* itsKinematicData;
+
+};
+
+/* Constructors and destructors:*/
+
+void AttitudeController_Init(AttitudeController* const me);
+
+void AttitudeController_Cleanup(AttitudeController* const me);
+
+/* Operations */
+
+void AttitudeController_manageAttitude(AttitudeController* const me);
+
+struct KinematicData*
+
+AttitudeController_getItsKinematicData(const AttitudeController*
+const me);
+
+void AttitudeController_setItsKinematicData(AttitudeController*
+
+const me, struct KinematicData* p_KinematicData);
+
+AttitudeController * AttitudeController_Create(void);
+
+void AttitudeController_Destroy(AttitudeController* const me);
+
+#endif
+
+
+this is AttitudeController.h file
+
+
+#include "AttitudeController.h"
+
+#include "KinematicData.h"
+
+static void cleanUpRelations(AttitudeController* const me);
+void AttitudeController_Init(AttitudeController* const me) {
+
+Attitude_Init(&(me->ownShipAttitude));
+
+me->itsKinematicData = NULL;
+
+}
+void AttitudeController_Cleanup(AttitudeController* const me) {
+
+cleanUpRelations(me);
+
+}
+
+void AttitudeController_manageAttitude(AttitudeController* const me) {
+KinematicData_setAttitude(me->itsKinematicData, me->ownShipAttitude);
+}
+struct KinematicData*
+
+AttitudeController_getItsKinematicData(const AttitudeController* const me) {
+ 
+return (struct KinematicData*)me->itsKinematicData;
+
+}
+
+void AttitudeController_setItsKinematicData(AttitudeController*
+const me, struct KinematicData* p_KinematicData) {
+me->itsKinematicData = p_KinematicData;
+}
+AttitudeController * AttitudeController_Create(void) {
+
+AttitudeController* me = (AttitudeController *)
+
+malloc(sizeof(AttitudeController));
+
+if(me!=NULL) {
+
+AttitudeController_Init(me);
+
+}
+
+return me;
+
+}
+void AttitudeController_Destroy(AttitudeController* const me) {
+if(me!=NULL) {
+AttitudeController_Cleanup(me);
+
+}
+
+free(me);
+
+}
+static void cleanUpRelations(AttitudeController* const me) {
+if(me->itsKinematicData != NULL) {
+me->itsKinematicData = NULL;
+}
+}
+
+this is AttitudeController.c.
+
+
+#ifndef Navigator_H
+
+#define Navigator_H
+
+#include "GuardedCallExample.h"
+
+#include "Position.h"
+
+struct KinematicData;
+
+typedef struct Navigator Navigator;
+struct Navigator {
+
+struct Position ownShipPosition;
+
+struct KinematicData* itsKinematicData;
+
+};
+/* Constructors and destructors:*/
+
+void Navigator_Init(Navigator* const me);
+
+void Navigator_Cleanup(Navigator* const me);
+
+/* Operations */
+
+void Navigator_updatePosition(Navigator* const me);
+
+struct KinematicData* Navigator_getItsKinematicData(const Navigator* const me);
+void Navigator_setItsKinematicData(Navigator* const me, struct
+
+KinematicData* p_KinematicData);
+
+Navigator * Navigator_Create(void);
+void Navigator_Destroy(Navigator* const me);
+#endif
+
+this is navigator.h file.
+
+#include "Navigator.h"
+
+#include "KinematicData.h"
+
+static void cleanUpRelations(Navigator* const me);
+void Navigator_Init(Navigator* const me) {
+
+Position_Init(&(me->ownShipPosition));
+
+me->itsKinematicData = NULL;
+
+}
+void Navigator_Cleanup(Navigator* const me) {
+
+cleanUpRelations(me);
+
+}
+
+void Navigator_updatePosition(Navigator* const me) {
+
+KinematicData_setPosition(me->itsKinematicData, me->ownShipPosition);
+
+}
+
+struct KinematicData* Navigator_getItsKinematicData(const
+
+Navigator* const me) {
+
+return (struct KinematicData*)me->itsKinematicData;
+
+}
+
+void Navigator_setItsKinematicData(Navigator* const me, struct
+
+KinematicData* p_KinematicData) {
+
+me->itsKinematicData = p_KinematicData;
+
+}
+
+Navigator * Navigator_Create(void) {
+
+Navigator* me = (Navigator *) malloc(sizeof(Navigator));
+
+if(me!=NULL) {
+
+Navigator_Init(me);
+
+}
+ 
+return me;
+
+}
+
+void Navigator_Destroy(Navigator* const me) {
+
+if(me!=NULL) {
+
+Navigator_Cleanup(me);
+
+}
+
+free(me);
+
+}
+static void cleanUpRelations(Navigator* const me) {
+
+if(me->itsKinematicData != NULL) {
+
+me->itsKinematicData = NULL;
+
+}
+
+}
+ 
+
+this is Navigator.c file.
+
+#ifndef FlightDataDisplay_H
+#define FlightDataDisplay_H
+#include "GuardedCallExample.h"
+struct KinematicData;
+typedef struct FlightDataDisplay FlightDataDisplay;
+struct FlightDataDisplay {
+
+struct KinematicData* itsKinematicData;
+
+};
+/* Constructors and destructors:*/
+void FlightDataDisplay_Init(FlightDataDisplay* const me);
+void FlightDataDisplay_Cleanup(FlightDataDisplay* const me);
+/* Operations */
+void FlightDataDisplay_showFlightData(FlightDataDisplay* const me);
+struct KinematicData* FlightDataDisplay_getItsKinematicData(const
+FlightDataDisplay* const me);
+void FlightDataDisplay_setItsKinematicData(FlightDataDisplay*
+const me, struct KinematicData* p_KinematicData);
+FlightDataDisplay * FlightDataDisplay_Create(void);
+void FlightDataDisplay_Destroy(FlightDataDisplay* const me);
+#endif
+
+this is FlightDataDisplay.h file 
+ 
+#include "FlightDataDisplay.h"
+#include "KinematicData.h"
+#include <stdio.h>
+static void cleanUpRelations(FlightDataDisplay* const me);
+void FlightDataDisplay_Init(FlightDataDisplay* const me) {
+me->itsKinematicData = NULL;
+}
+void FlightDataDisplay_Cleanup(FlightDataDisplay* const me) {
+cleanUpRelations(me);
+}
+void FlightDataDisplay_showFlightData(FlightDataDisplay* const me) {
+Attitude a;
+Position p;
+a = KinematicData_getAttitude(me->itsKinematicData);
+p = KinematicData_getPosition(me->itsKinematicData);
+printf("Roll, pitch, yaw = %f, %f, %f \n", a.roll, a.pitch, a.yaw);
+printf("Lat, Long, Altitude = %f, %f, %f\n", p.latitude, p.longitude, p.altitude);
+}
+struct KinematicData* FlightDataDisplay_getItsKinematicData(const FlightDataDisplay* const me) {
+return (struct KinematicData*)me->itsKinematicData;
+}
+void FlightDataDisplay_setItsKinematicData(FlightDataDisplay* const me, struct KinematicData* p_KinematicData) {
+me->itsKinematicData = p_KinematicData;
+}
+FlightDataDisplay * FlightDataDisplay_Create(void) {
+FlightDataDisplay* me = (FlightDataDisplay *) malloc(sizeof
+(FlightDataDisplay));
+if(me!=NULL) {
+FlightDataDisplay_Init(me);
+}
+return me;
+}
+void FlightDataDisplay_Destroy(FlightDataDisplay* const me) {
+if(me!=NULL) {
+FlightDataDisplay_Cleanup(me);
+}
+free(me);
+}
+
+static void cleanUpRelations(FlightDataDisplay* const me) {
+if(me->itsKinematicData != NULL) {
+me->itsKinematicData = NULL;
+}
+}
+
+this is FlightDataDisplay.c file

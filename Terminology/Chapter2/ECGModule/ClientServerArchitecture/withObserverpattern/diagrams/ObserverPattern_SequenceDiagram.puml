@@ -1,0 +1,36 @@
+@startuml ObserverPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Client
+participant "ConcreteSubject (TMDQueue)" as Subject
+participant "ConcreteObserver (HistogramDisplay)" as Observer
+participant "NotificationHandle" as Handle
+
+Client -> Subject : TMDQueue_subscribe(updateAddr)
+activate Subject
+Subject -> Handle : Create NotificationHandle
+Handle -> Observer : Link updateAddr
+deactivate Subject
+
+Client -> Subject : TMDQueue_insert(data)
+activate Subject
+Subject -> Subject : Add data to buffer
+Subject -> Subject : Notify observers
+Subject -> Handle : Walk through NotificationHandle list
+Handle -> Observer : Call update(data)
+Observer -> Client : Process data
+deactivate Subject
+
+Client -> Subject : TMDQueue_unsubscribe(updateAddr)
+activate Subject
+Subject -> Handle : Remove NotificationHandle
+deactivate Subject
+
+@enduml

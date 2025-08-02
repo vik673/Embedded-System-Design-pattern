@@ -1,0 +1,45 @@
+@startuml SecuritySupervisorEventDispatcher_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor User
+participant "SecuritySupervisorEventDispatcher" as Dispatcher
+participant "State" as State
+participant "Params" as Params
+
+User -> Dispatcher : dispatchEvent(id)
+activate Dispatcher
+
+Dispatcher -> State : Check activeState
+alt Idle State
+    Dispatcher -> State : retries >= 3
+    alt Max retries exceeded
+        Dispatcher -> Dispatcher : displayMsg("ERROR: Max retries Exceeded")
+        Dispatcher -> State : Transition to ErrorState
+    else Retries < 3
+        Dispatcher -> Dispatcher : retries++
+        Dispatcher -> State : Transition to Accepting
+    end
+else Accepting State
+    Dispatcher -> Params : Check params->key
+    alt isCANCEL
+        Dispatcher -> Dispatcher : retries = 0
+        Dispatcher -> Dispatcher : displayMsg("Cancelled")
+        Dispatcher -> State : Transition to Idle
+    else isDigit
+        Dispatcher -> Dispatcher : addKey(params->key)
+        Dispatcher -> State : Remain in Accepting
+    else isENTER
+        Dispatcher -> State : Transition to CheckingLength
+    end
+end
+
+deactivate Dispatcher
+
+@enduml

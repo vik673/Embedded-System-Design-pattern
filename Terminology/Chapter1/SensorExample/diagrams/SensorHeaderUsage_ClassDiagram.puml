@@ -1,0 +1,29 @@
+@startuml SensorHeaderUsage_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class Sensor {
+    - value : int
+    - updateFrequency : int
+    - filterFrequency : int
+    + Sensor_Create() : Sensor*
+    + Sensor_Destroy(sensor : Sensor*)
+    + Sensor_getValue(sensor : Sensor*) : int
+    + Sensor_setValue(sensor : Sensor*, v : int)
+    + Sensor_setUpdateFreq(sensor : Sensor*, r : int)
+    + Sensor_getUpdateFreq(sensor : Sensor*) : int
+    + Sensor_setFilterFreq(sensor : Sensor*, ff : int)
+    + Sensor_getFilterFreq(sensor : Sensor*) : int
+}
+
+class SensorHeaderUsage {
+    + main(argc : int, argv : char**) : int
+}
+
+SensorHeaderUsage --> Sensor : uses
+
+@enduml

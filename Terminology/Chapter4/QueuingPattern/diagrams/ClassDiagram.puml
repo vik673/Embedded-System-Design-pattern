@@ -1,0 +1,42 @@
+@startuml QueuingPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class Message {
+    + data : ... // data fields (could be primitive or complex)
+    ...existing code...
+}
+
+class MessageQueue {
+    - head : int
+    - tail : int
+    - size : int
+    - itsMessage[QUEUE_SIZE] : Message
+    - mutex : Mutex*
+    + insert(m: Message) : int
+    + remove() : Message*
+    + getNextIndex(index: int) : int
+    ...existing code...
+}
+
+class Mutex {
+    + lock()
+    + release()
+    ...existing code...
+}
+
+class QTask {
+    + sendMessage(m: Message)
+    + processMessage()
+    ...existing code...
+}
+
+MessageQueue --> Mutex : uses
+QTask --> MessageQueue : accesses
+MessageQueue "1" o-- "0..*" Message : contains
+
+@enduml

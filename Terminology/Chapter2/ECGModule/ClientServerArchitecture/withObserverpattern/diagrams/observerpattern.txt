@@ -1,0 +1,138 @@
+# Observer Pattern
+
+## Abstract
+The **Observer Pattern** addresses the concern of dynamically adding and removing clients of data or services, as well as optimizing the processing associated with updating those clients in a timely way.
+
+---
+
+## Problem
+- Maintains the **client-server architecture** where:
+  - Clients know about a server that has data or services of interest.
+  - The server does not need to know about the clients (other than their update operation).
+- The server is responsible for:
+  - Updating clients efficiently and timely.
+  - Maintaining a list of interested clients and notifying them when appropriate (e.g., periodically or when data changes).
+- Clients can be dynamically added or removed during runtime.
+
+---
+
+## Pattern Structure
+This pattern defines the following roles:
+
+### Abstract Observer
+- Has a one-way association (link) to the **Abstract Subject**.
+- Can:
+  - Subscribe to the subject (add to the list of interested clients).
+  - Unsubscribe from the subject (remove from the list).
+- Provides an `update` operation with a specific signature to be invoked by the subject.
+
+### Abstract Subject
+- Serves as the base class for the server in the client-server architecture.
+- Provides:
+  - Operations to add or remove clients (`subscribe` and `unsubscribe`).
+  - A `notify` operation to update all subscribed clients.
+- Maintains a list of **NotificationHandle** objects to manage subscriptions.
+
+### Notification Handle
+- Provides a dynamic callback link between the **Abstract Subject** and the **Abstract Observer**.
+- Contains:
+  - A pointer to the observer's `update` operation.
+  - A link to the next notification handle in the list.
+
+### Concrete Observer
+- Subclass of the **Abstract Observer**.
+- Implements the `update` operation to process notifications from the subject.
+
+### Concrete Subject
+- Subclass of the **Abstract Subject**.
+- Provides application-specific data or services of interest to the **Concrete Observer**.
+
+---
+
+## Consequences
+1. **Execution Efficiency**:
+   - Efficient delivery of updates to clients only when necessary (push approach).
+   - Score: 8/10.
+
+2. **Maintainability**:
+   - Maintains the classic client-server architecture, improving maintainability.
+   - Score: 7/10.
+
+3. **Run-Time Flexibility**:
+   - Allows dynamic addition and removal of clients with minimal requirements (only an `update` method is needed).
+   - Score: 9/10.
+
+4. **Memory Usage**:
+   - Uses less memory as clients do not need to track their position in the data buffer.
+   - Score: 9/10.
+
+---
+
+## Class Diagram Explanation
+The class diagram for the observer pattern is structured as follows:
+1. **AbstractSubject**:
+   - Manages a list of `NotificationHandle` objects.
+   - Provides methods for subscribing, unsubscribing, and notifying observers.
+
+2. **AbstractObserver**:
+   - Defines the `update` method to be implemented by concrete observers.
+
+3. **ConcreteSubject (TMDQueue)**:
+   - Implements the server-side logic, including data insertion and notification.
+   - Maintains a buffer for storing data and a linked list of `NotificationHandle` objects.
+
+4. **ConcreteObserver (e.g., HistogramDisplay)**:
+   - Implements the client-side logic, including subscribing, unsubscribing, and processing updates.
+
+5. **NotificationHandle**:
+   - Links the subject to the observer's `update` method and manages the linked list of handles.
+
+---
+
+## Sequence Diagram Explanation
+The sequence diagram for the observer pattern illustrates the following flow:
+1. **Subscription**:
+   - The client subscribes to the subject using the `subscribe` method.
+   - A `NotificationHandle` is created and linked to the observer's `update` method.
+
+2. **Insertion and Notification**:
+   - The client inserts data into the subject using the `insert` method.
+   - The subject notifies all observers by walking through the `NotificationHandle` list and invoking their `update` methods.
+
+3. **Unsubscription**:
+   - The client unsubscribes from the subject using the `unsubscribe` method.
+   - The corresponding `NotificationHandle` is removed from the list.
+
+---
+
+## Implementation Strategies
+The observer pattern can be implemented in various ways:
+1. **Copying**:
+   - Copy code from the superclass into the subclass.
+2. **Mix-In**:
+   - Delegate service requests from the subclass to the superclass.
+3. **Virtual Function Table**:
+   - Use a table to manage dynamic method calls.
+
+In this implementation:
+- The simplest approach is used: copying and implementing code from the **Abstract Subject** into the **Concrete Subject** and from the **Abstract Observer** into the **Concrete Observer**.
+
+---
+
+## Example
+The observer pattern is instantiated with the following elements:
+- **Concrete Subject**: `TMDQueue`.
+- **Concrete Observers**: `WaveformDisplay`, `HistogramDisplay`, `QRSDetector`, and `ArrhythmiaDetector`.
+
+The `TMDQueue` class includes:
+- `subscribe()`, `unsubscribe()`, and `notify()` methods.
+- A linked list of `NotificationHandle` objects to manage subscriptions.
+
+The `HistogramDisplay` class includes:
+- An `update()` method to process notifications.
+- `Init()` and `Cleanup()` methods to manage subscriptions.
+
+---
+
+## Summary
+The observer pattern provides a flexible and efficient way to dynamically manage client-server interactions. It ensures timely updates to clients while maintaining a clean and maintainable architecture.

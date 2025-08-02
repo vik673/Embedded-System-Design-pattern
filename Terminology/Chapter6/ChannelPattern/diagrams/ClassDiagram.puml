@@ -1,0 +1,53 @@
+@startuml ChannelPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class EMGChannel {
+    + acquireData()
+    + getFrequency() : double
+    + getLightColor() : long
+    + setSensitivity(int)
+    // ...existing code...
+}
+
+class EMGSensorDeviceDriver {
+    + acquireData()
+    + voltage : int
+    // ...existing code...
+}
+
+class ConvertToFrequency {
+    + computeFreq()
+    // ...existing code...
+}
+
+class movingAverageFilter {
+    + computedFreq : double
+    + filter()
+    // ...existing code...
+}
+
+class CalculateColor {
+    + red : int
+    + green : int
+    + blue : int
+    + freqToColor()
+    // ...existing code...
+}
+
+class LightDeviceDriver {
+    + setLightColor(long)
+    // ...existing code...
+}
+
+EMGChannel --> EMGSensorDeviceDriver : contains
+EMGChannel --> ConvertToFrequency : processes through
+EMGChannel --> movingAverageFilter : processes through
+EMGChannel --> CalculateColor : processes through
+EMGChannel --> LightDeviceDriver : controls
+
+@enduml

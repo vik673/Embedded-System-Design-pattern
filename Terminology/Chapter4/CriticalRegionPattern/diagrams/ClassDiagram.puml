@@ -1,0 +1,41 @@
+@startuml CriticalRegion_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class CRRobotArmManager {
+    - itsCRDisplay : CRDisplay*
+    - itsRobotArm   : RobotArm*
+    - itsUserInput  : UserInput*
+    + motorZero()
+    + moveRobotArm()
+    + getItsCRDisplay() : CRDisplay*
+    + setItsCRDisplay(p_CRDisplay : CRDisplay)
+    + getItsRobotArm() : RobotArm*
+    + setItsRobotArm(p_RobotArm : RobotArm)
+    + getItsUserInput() : UserInput*
+    + setItsUserInput(p_UserInput : UserInput)
+}
+
+class CRDisplay {
+    + printMsg(msg : String)
+    + printInt(prefix : String, value : int)
+}
+
+class RobotArm {
+    + moveTo(x : int, y : int, z : int) : int
+}
+
+class UserInput {
+    + getX() : int
+    + getY() : int
+}
+
+CRRobotArmManager --> CRDisplay : uses
+CRRobotArmManager --> RobotArm   : controls
+CRRobotArmManager --> UserInput  : receives input
+
+@enduml

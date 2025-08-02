@@ -1,0 +1,41 @@
+```plaintext
+@startuml SingleReceptorPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class TokenizerSingleReceptor {
+    + ch : char
+    + result : double
+    + tensPlace : double
+    + stateID : TSTATETYPE
+    + subStateID : TSUBSTATETYPE
+    + handleEvent(eventCode: int, data: char) // Single receptor for all events
+    + enterState() // Entry actions per state
+    + exitState() // Exit actions per state
+}
+
+class Mutex {
+    + lock()
+    + release()
+}
+
+TokenizerSingleReceptor --> Mutex : uses
+
+enum TSTATETYPE {
+    NULL_STATE,
+    NONUMBER_STATE,
+    GOTNUMBER_STATE
+}
+
+enum TSUBSTATETYPE {
+    NULL_SSTATE,
+    PROCESSINGWHOLEPART_SSTATE,
+    PROCESSINGFRACTIONALPART_SSTATE
+}
+
+@enduml
+```

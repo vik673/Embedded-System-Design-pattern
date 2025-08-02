@@ -1,0 +1,54 @@
+@startuml StateTableDesignPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class Context {
+    + ch: char
+    + result: double
+    + tensPlace: double
+    + currentState: TSTATETYPE
+    + stateTable: StateTableMachine*
+    + evDigit(c: char)
+    + evDot()
+    + evEndOfString()
+    + evWhiteSpace()
+    // ...existing code...
+}
+
+class StateTableMachine {
+    + lookup(state: TSTATETYPE, eventCode: int): TransitionRule
+    // ...existing code...
+}
+
+class TransitionRule {
+    + nextState: TSTATETYPE
+    + action: ActionPtr  // Pointer to the transition action
+    // ...existing code...
+}
+
+class Mutex {
+    + lock()
+    + release()
+    // ...existing code...
+}
+
+Context --> StateTableMachine : uses
+Context --> Mutex : synchronizes
+
+enum TSTATETYPE {
+    NULL_STATE,
+    NONUMBER_STATE,
+    GOTNUMBER_STATE
+}
+
+enum TSUBSTATETYPE {
+    NULL_SSTATE,
+    PROCESSINGWHOLEPART_SSTATE,
+    PROCESSINGFRACTIONALPART_SSTATE
+}
+
+@enduml

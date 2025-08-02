@@ -1,0 +1,33 @@
+@startuml ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class AdapterClient {
+    + requestService()
+}
+
+class HardwareInterfaceToClient {
+    <<interface>>
+    + serviceRequest()
+}
+
+class HardwareAdapter {
+    + serviceRequest()
+    - convertRequest()
+    - hardwareProxy : HardwareProxy
+}
+
+class HardwareProxy {
+    + executeCommand()
+    + getStatus()
+}
+
+AdapterClient --> HardwareInterfaceToClient : uses
+HardwareAdapter ..|> HardwareInterfaceToClient : implements
+HardwareAdapter --> HardwareProxy : interacts with
+
+@enduml

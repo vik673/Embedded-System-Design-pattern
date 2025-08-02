@@ -1,0 +1,26 @@
+@startuml DeadlockPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "Thread A" as TA
+actor "Thread B" as TB
+participant "SharedResource 1" as Res1
+participant "SharedResource 2" as Res2
+
+TA -> Res1 : lock()
+activate Res1
+TB -> Res2 : lock()
+activate Res2
+
+TA -> Res2 : lock()    // Blocked: Res2 already locked by TB
+TB -> Res1 : lock()    // Blocked: Res1 already locked by TA
+
+...Deadlock occurs (circular wait)...
+
+@enduml

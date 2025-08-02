@@ -1,0 +1,57 @@
+@startuml SimultaneousLockingPattern_Class
+
+skinparam class {
+    BackgroundColor<<ResourceClient>> #E3F6FC
+    BackgroundColor<<ResourceMaster>> #FDE3A7
+    BackgroundColor<<ResourceMasterSimplified>> #FDE3A7
+    BackgroundColor<<MasteredResource>> #D5F5E3
+    BackgroundColor<<MultimasteredResource>> #D5F5E3
+    BackgroundColor<<Mutex>> #F9E79F
+    BackgroundColor<<QueryMutex>> #F9E79F
+}
+
+class ResourceClient <<ResourceClient>> {
+    +lockResources()
+    +useResources()
+    -itsMultimasteredResource : MultimasteredResource
+}
+
+class ResourceMaster <<ResourceMaster>> {
+    +lockAll()
+    +releaseAll()
+    -resources : MultimasteredResource[]
+}
+
+class ResourceMasterSimplified <<ResourceMasterSimplified>> {
+    +lock()
+    +release()
+    -resources : MasteredResource[]
+}
+
+class MasteredResource <<MasteredResource>> {
+    +service()
+}
+
+class MultimasteredResource <<MultimasteredResource>> {
+    +service()
+    -itsPartMutex : QueryMutex
+}
+
+class Mutex <<Mutex>> {
+    +lock()
+    +release()
+}
+
+class QueryMutex <<QueryMutex>> {
+    +lock()
+    +release()
+    +tryLock()
+}
+
+ResourceClient "1" --> "1" ResourceMaster : uses
+ResourceMaster "1" --> "*" MultimasteredResource : manages
+ResourceMasterSimplified "1" --> "*" MasteredResource : manages
+MultimasteredResource "1" --> "1" QueryMutex : uses
+MasteredResource "1" --> "1" Mutex : uses
+
+@enduml

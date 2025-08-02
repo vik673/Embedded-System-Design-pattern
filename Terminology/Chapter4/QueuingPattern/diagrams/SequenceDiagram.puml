@@ -1,0 +1,33 @@
+@startuml QueuingPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "QTask (Producer)" as Producer
+actor "QTask (Consumer)" as Consumer
+participant "MessageQueue" as MQ
+participant "Mutex" as Mtx
+
+Producer -> MQ : insert(Message)
+activate MQ
+MQ -> Mtx : lock()
+MQ -> MQ : Enqueue message, update head, size
+MQ -> Mtx : release()
+deactivate MQ
+Producer --> Producer : Continue processing
+
+Consumer -> MQ : remove()
+activate MQ
+MQ -> Mtx : lock()
+MQ -> MQ : Dequeue message, update tail, size
+MQ -> Mtx : release()
+deactivate MQ
+MQ --> Consumer : Return Message
+Consumer -> Consumer : Process Message
+
+@enduml

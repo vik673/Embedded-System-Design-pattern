@@ -1,0 +1,28 @@
+@startuml SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor User
+participant "ECG_Module" as ECG
+participant "TMDQueue" as Queue
+participant "HistogramDisplay" as Client
+
+User -> ECG : ECG_Module_acquireValue()
+activate ECG
+ECG -> Queue : TMDQueue_insert(data)
+deactivate ECG
+
+User -> Client : HistogramDisplay_getValue()
+activate Client
+Client -> Queue : TMDQueue_remove(index)
+Queue --> Client : Return data
+Client -> Client : updateHistogram()
+deactivate Client
+
+@enduml

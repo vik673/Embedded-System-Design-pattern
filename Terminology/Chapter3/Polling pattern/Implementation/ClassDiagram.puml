@@ -1,0 +1,43 @@
+@startuml PollingPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class BCPeriodicPoller {
+    - pollTime : unsigned long
+    - itsBCTimer : BCTimer*
+    - itsBreathingCircuitSensor[3] : BreathingCircuitSensor*
+    - itsMedicalDisplay : MedicalDisplay*
+    + poll()
+    + setPollTime(t: unsigned long)
+    + startPolling()
+    + stopPolling()
+}
+
+class BCTimer {
+    + startTimer(timeout: unsigned long)
+    + stopTimer()
+    + installInterruptHandler()
+    + removeInterruptHandler()
+}
+
+class BreathingCircuitSensor {
+    + getData() : deviceData
+    + getState() : int
+}
+
+class MedicalDisplay {
+    + showO2Concentration(data: deviceData)
+    + showGasFlow(data: deviceData)
+    + showGasFlowStatus(state: int)
+    + showCircuitPressure(data: deviceData)
+}
+
+BCPeriodicPoller --> BCTimer : uses
+BCPeriodicPoller --> BreathingCircuitSensor : aggregates
+BCPeriodicPoller --> MedicalDisplay : updates
+
+@enduml

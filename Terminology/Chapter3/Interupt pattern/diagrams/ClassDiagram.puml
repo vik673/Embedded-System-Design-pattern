@@ -1,0 +1,27 @@
+@startuml InterruptPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class InterruptHandler {
+    + install()
+    + deinstall()
+    + handleButtonPushInterrupt() <<interrupt>>
+    + handleButtonReleaseInterrupt() <<interrupt>>
+}
+
+class InterruptVectorTable {
+    - vectorArray : vectorPtr[10]
+}
+
+' vectorPtr is a function pointer type to parameterless ISRs.
+class vectorPtr <<typedef>> {
+    + (void) 
+}
+
+InterruptHandler --> InterruptVectorTable : registers ISRs
+
+@enduml

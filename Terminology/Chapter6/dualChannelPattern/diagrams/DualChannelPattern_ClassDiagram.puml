@@ -1,0 +1,49 @@
+@startuml DualChannelPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class Channel {
+    + acquireData()
+    + processData()
+    + enable()
+    + disable()
+}
+
+class ConcreteTransformChecker {
+    + checkOutput(): bool
+    + disableCurrentChannel()
+    + enableAlternativeChannel()
+}
+
+class SensorDeviceDriver {
+    + acquireData() : int
+}
+
+class ActuatorDeviceDriver {
+    + setOutput(data: int)
+}
+
+class ConcreteDataTransform {
+    + transform(data: int): int
+}
+
+class DualChannelManager {
+    + itsChannel : Channel
+    + itsOtherChannel : Channel
+    + itsChecker : ConcreteTransformChecker
+    + manageChannels()
+}
+
+DualChannelManager --> Channel : itsChannel
+DualChannelManager --> Channel : itsOtherChannel
+DualChannelManager --> ConcreteTransformChecker : uses
+
+Channel --> SensorDeviceDriver : acquires data from
+Channel --> ConcreteDataTransform : processes data through
+Channel --> ActuatorDeviceDriver : sends output to
+
+@enduml

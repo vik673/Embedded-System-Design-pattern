@@ -1,0 +1,22 @@
+@startuml QueueTestProgram_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Tester
+participant "Queue" as Q
+
+Tester -> Q : Queue_Create()
+activate Q
+Tester -> Q : insert(k) [loop QUEUE_SIZE times]
+Tester -> Q : getSize()
+Tester -> Q : remove() [loop QUEUE_SIZE times]
+Tester -> Q : getSize()
+deactivate Q
+
+@enduml

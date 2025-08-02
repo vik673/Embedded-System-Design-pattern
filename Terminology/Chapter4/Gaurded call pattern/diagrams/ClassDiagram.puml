@@ -1,0 +1,30 @@
+@startuml GuardedCall_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class GuardedResource {
+    + setValue(val: int)
+    + getValue() : int
+    - semaphore: Semaphore*
+    ...existing code...
+}
+
+class PreemptiveTask {
+    + performOperation()
+    ...existing code...
+}
+
+class Semaphore {
+    + lock()
+    + release()
+    ...existing code...
+}
+
+PreemptiveTask --> GuardedResource : accesses
+GuardedResource --> Semaphore : uses
+
+@enduml

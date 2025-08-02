@@ -1,0 +1,48 @@
+@startuml SecuritySupervisorEventDispatcher
+
+skinparam state {
+    BackgroundColor LightBlue
+    BorderColor Black
+    ArrowColor Navy
+}
+
+[*] --> Idle : Start
+
+state Idle {
+    [*] --> Idle
+    Idle : Retries < 3
+    Idle --> Accepting : Null_id / retries++
+    Idle --> ErrorState : Null_id [retries >= 3] / displayMsg("ERROR: Max retries Exceeded")
+}
+
+state Accepting {
+    [*] --> Accepting
+    Accepting --> Idle : isCANCEL(params->key) / retries = 0, strcpy(pin, ""), displayMsg("Cancelled")
+    Accepting --> Accepting : isDigit(params->key) / addKey(params->key)
+    Accepting --> CheckingLength : isENTER(params->key)
+}
+
+state CheckingLength {
+    [*] --> CheckingLength
+    CheckingLength --> ValidatingPIN : strlen(pin) == 4
+    CheckingLength --> Idle : strlen(pin) != 4 / strcpy(pin, ""), displayMsg("ERROR: PIN wrong length")
+}
+
+state ValidatingPIN {
+    [*] --> ValidatingPIN
+    ValidatingPIN --> SecurityOpen : isValid(pin) / unlockDoor(), displayMsg("Door unlocked")
+    ValidatingPIN --> Idle : !isValid(pin) / strcpy(pin, ""), displayMsg("ERROR: Invalid PIN")
+}
+
+state SecurityOpen {
+    [*] --> SecurityOpen
+    SecurityOpen --> Idle : isRESET(params->key) / lockDoor(), retries = 0, strcpy(pin, ""), displayMsg("Door locked")
+}
+
+Idle --> Accepting : Null_id
+Accepting --> CheckingLength : isENTER(params->key)
+CheckingLength --> ValidatingPIN : strlen(pin) == 4
+ValidatingPIN --> SecurityOpen : isValid(pin)
+SecurityOpen --> Idle : isRESET(params->key)
+
+@enduml

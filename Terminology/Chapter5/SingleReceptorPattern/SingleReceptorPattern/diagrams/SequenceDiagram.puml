@@ -1,0 +1,32 @@
+@startuml SingleReceptorPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "TMRClient" as Client
+participant "TokenizerSingleReceptor" as TSR
+
+Client -> TSR : handleEvent(EV_DIGIT, '7')
+activate TSR
+TSR -> TSR : Mutex.lock()
+TSR -> TSR : Process event (switch-case on event code)
+TSR -> TSR : Update stateID, subStateID, result, tensPlace
+TSR -> TSR : Mutex.release()
+deactivate TSR
+Client --> TSR : (Updated state output)
+
+Client -> TSR : handleEvent(EV_DOT, '\0')
+activate TSR
+TSR -> TSR : Mutex.lock()
+TSR -> TSR : Process EV_DOT, transition state accordingly
+TSR -> TSR : Mutex.release()
+deactivate TSR
+
+...additional events...
+
+@enduml

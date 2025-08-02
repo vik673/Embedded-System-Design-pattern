@@ -1,0 +1,44 @@
+@startuml ObserverPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class AbstractSubject {
+    + subscribe(acceptPtr)
+    + unsubscribe(acceptPtr)
+    + notify()
+    - notificationList : NotificationHandle[]
+    - datum : Datum
+}
+
+class AbstractClient {
+    + accept(data : Datum)
+}
+
+class ConcreteSubject {
+    + newData(data : Datum)
+    + notify()
+    - datum : Datum
+    - notificationList : NotificationHandle[]
+}
+
+class ConcreteClient {
+    + accept(data : Datum)
+    + subscribeTo(subject : AbstractSubject)
+    + unsubscribeFrom(subject : AbstractSubject)
+}
+
+class NotificationHandle {
+    + acceptorPtr : function pointer
+    + instancePtr : pointer
+}
+
+AbstractSubject <|-- ConcreteSubject
+AbstractClient <|-- ConcreteClient
+ConcreteSubject --> NotificationHandle : maintains
+ConcreteClient --> NotificationHandle : registers with
+
+@enduml

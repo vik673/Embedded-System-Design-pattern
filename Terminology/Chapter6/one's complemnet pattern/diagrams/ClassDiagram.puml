@@ -1,0 +1,29 @@
+@startuml OnesComplementPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class OnesCompProtectedDataElement {
+    + data: AttitudeDataType
+    + invertedData: AttitudeDataType
+    + getData(): int
+    + setData(a: AttitudeDataType)
+    + invert(a: AttitudeDataType): AttitudeDataType
+    + errorHandler()
+}
+
+class AlarmManager {
+    + addAlarm(code: int)
+}
+
+class DataClient {
+    + requestData()
+}
+
+OnesCompProtectedDataElement --> AlarmManager : uses
+DataClient --> OnesCompProtectedDataElement : accesses
+
+@enduml

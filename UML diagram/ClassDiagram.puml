@@ -1,0 +1,141 @@
+@startuml UML_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+title UML Class Diagram Components
+
+' Interface definition
+interface SensorInterface {
+  +getData() : int
+  +getStatus() : bool
+  +calibrate() : void
+}
+
+' Abstract class
+abstract class Device {
+  #deviceId : string
+  #status : DeviceStatus
+  +getId() : string
+  +getStatus() : DeviceStatus
+  +{abstract} initialize() : void
+  +{abstract} shutdown() : void
+}
+
+' Enumeration
+enum DeviceStatus {
+  OFFLINE
+  ONLINE
+  ERROR
+  MAINTENANCE
+}
+
+' Main class with attributes and operations
+class SensorClass {
+  -sensorId : int
+  -currentValue : float
+  -threshold : float
+  -isCalibrated : bool
+  
+  +SensorClass(id : int)
+  +SensorClass_getData() : float
+  +SensorClass_setThreshold(value : float) : void
+  +SensorClass_calibrate() : bool
+  +SensorClass_isWithinThreshold() : bool
+  -validateReading(value : float) : bool
+}
+
+' Data collection class
+class DataLogger {
+  -logFile : string
+  -maxEntries : int
+  -currentEntries : int
+  
+  +DataLogger(filename : string)
+  +logData(sensor : SensorClass) : void
+  +getLogEntry(index : int) : LogEntry
+  +clearLog() : void
+}
+
+' Value object
+class LogEntry {
+  +timestamp : DateTime
+  +sensorId : int
+  +value : float
+  +status : string
+}
+
+' Controller class
+class SensorController {
+  -sensors : SensorClass[]
+  -logger : DataLogger
+  -alertThreshold : float
+  
+  +addSensor(sensor : SensorClass) : void
+  +removeSensor(sensorId : int) : bool
+  +readAllSensors() : void
+  +checkAlerts() : void
+}
+
+' Utility class
+class MathUtils {
+  +{static} average(values : float[]) : float
+  +{static} standardDeviation(values : float[]) : float
+  +{static} interpolate(x1 : float, y1 : float, x2 : float, y2 : float, x : float) : float
+}
+
+' Relationships
+
+' Realization (Interface implementation)
+SensorClass ..|> SensorInterface : <<realizes>>
+
+' Generalization (Inheritance)
+SensorClass --|> Device : <<extends>>
+
+' Association with multiplicity
+SensorController "1" -- "0..*" SensorClass : manages >
+
+' Composition (strong whole-part relationship)
+SensorController *-- "1" DataLogger : contains
+
+' Aggregation (weak whole-part relationship)
+DataLogger o-- "0..*" LogEntry : collects
+
+' Dependency
+SensorController ..> MathUtils : <<uses>>
+DataLogger ..> LogEntry : <<creates>>
+
+' Association with navigation
+SensorClass --> DeviceStatus : has
+
+' Comments and notes
+note right of SensorClass : Implements the common\nsensor interface pattern\nused in embedded systems
+
+note top of SensorController : Central controller that\nmanages multiple sensors\nand handles data logging
+
+note bottom of MathUtils : Utility class providing\nstatic mathematical\nfunctions for data analysis
+
+' Sample elements
+class Sensor {
+    + id: int
+    + getData()
+}
+
+class Actuator {
+    + id: int
+    + setOutput(data: int)
+}
+
+class Controller {
+    + controlSensor()
+    + updateActuator()
+}
+
+Sensor --> Controller : uses
+Controller --> Actuator : controls
+Controller ..> Sensor : depends on
+
+@enduml

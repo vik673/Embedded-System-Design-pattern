@@ -1,0 +1,37 @@
+@startuml ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class AbstractSubject {
+    + subscribe(observer : AbstractObserver)
+    + unsubscribe(observer : AbstractObserver)
+    + notify(data : Data)
+    - observers : NotificationHandle*
+}
+
+class AbstractObserver {
+    + update(data : Data)
+}
+
+class ConcreteSubject {
+    + setData(data : Data)
+    + notifyObservers()
+    - data : Data
+}
+
+class ConcreteObserver {
+    + update(data : Data)
+    + subscribeTo(subject : AbstractSubject)
+    + unsubscribeFrom(subject : AbstractSubject)
+}
+
+AbstractSubject <|-- ConcreteSubject
+AbstractObserver <|-- ConcreteObserver
+AbstractSubject --> NotificationHandle : manages
+NotificationHandle --> AbstractObserver : callback
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor User
+participant "ConcreteSubject" as Subject
+participant "ConcreteObserver" as Observer
+participant "NotificationHandle" as Handle
+
+User -> Subject : subscribe(observer)
+activate Subject
+Subject -> Handle : Create NotificationHandle
+Handle -> Observer : Link update method
+deactivate Subject
+
+User -> Subject : setData(data)
+activate Subject
+Subject -> Subject : Update internal data
+Subject -> Subject : notifyObservers()
+Subject -> Handle : Walk through NotificationHandle list
+Handle -> Observer : Call update(data)
+Observer -> User : Process data
+deactivate Subject
+
+User -> Subject : unsubscribe(observer)
+activate Subject
+Subject -> Handle : Remove NotificationHandle
+deactivate Subject
+
+@enduml

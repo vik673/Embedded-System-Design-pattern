@@ -1,0 +1,41 @@
+@startuml SequenceDiagram
+' If PlantUML preview is not working, try the following:
+' - Ensure your editor/IDE has the PlantUML extension installed and enabled.
+' - Make sure Java is installed and configured for PlantUML.
+' - Check for syntax errors (none found here).
+' - Try opening the file in a different PlantUML viewer or online at https://www.plantuml.com/plantuml/
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor User
+participant "BouncingDevice" as Device
+participant "Debouncer" as Debouncer
+participant "DebouncingTimer" as Timer
+participant "ApplicationClient" as Client
+
+User -> Device : sendEvent()
+activate Device
+Device -> Debouncer : eventReceive()
+deactivate Device
+
+activate Debouncer
+Debouncer -> Timer : delay(DEBOUNCE_TIME)
+activate Timer
+Timer --> Debouncer : delay complete
+deactivate Timer
+
+Debouncer -> Device : getState()
+alt State changed
+    Debouncer -> Client : deviceEventReceive()
+else State unchanged
+    Debouncer : Ignore event
+end
+deactivate Debouncer
+
+@enduml

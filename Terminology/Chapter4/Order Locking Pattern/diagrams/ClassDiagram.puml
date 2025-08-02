@@ -1,0 +1,45 @@
+@startuml OrderedLockingPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class OrderedResource {
+    + resourceID : int
+    + monadicAccessFunction()
+    + lockDyadic() : int
+    + releaseDyadic()
+    - mutex : Mutex*
+    ...existing code...
+}
+
+class ResourceList {
+    + addLock(rID: int) : int
+    + removeLock(rID: int)
+    - rIDList : int[]
+    - nIDs : int
+    - mutex : Mutex*
+    ...existing code...
+}
+
+class ResourceClient {
+    + accessResource()
+    + lockResources()
+    + releaseResources()
+    ...existing code...
+}
+
+class Mutex {
+    + lock()
+    + release()
+    ...existing code...
+}
+
+OrderedResource --> Mutex : uses
+ResourceList --> Mutex : uses
+ResourceClient --> OrderedResource : locks (in order)
+ResourceClient --> ResourceList : validates order
+
+@enduml

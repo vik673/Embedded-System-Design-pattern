@@ -1,0 +1,42 @@
+@startuml OrderedLockingPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "ResourceClient" as Client
+participant "OrderedResource A (ID=1)" as ResA
+participant "OrderedResource B (ID=2)" as ResB
+participant "ResourceList" as RList
+
+Client -> ResA : lockDyadic()
+activate ResA
+ResA -> RList : addLock(1)
+ResA -> ResA : lock internal mutex
+deactivate ResA
+
+Client -> ResB : lockDyadic()
+activate ResB
+ResB -> RList : addLock(2)   // Allowed since 2 > 1
+ResB -> ResB : lock internal mutex
+deactivate ResB
+
+...Critical operations using both ResA and ResB...
+
+Client -> ResB : releaseDyadic()
+activate ResB
+ResB -> RList : removeLock(2)
+ResB -> ResB : release internal mutex
+deactivate ResB
+
+Client -> ResA : releaseDyadic()
+activate ResA
+ResA -> RList : removeLock(1)
+ResA -> ResA : release internal mutex
+deactivate ResA
+
+@enduml

@@ -1,0 +1,27 @@
+@startuml OnesComplementPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "DataClient" as Client
+participant "OnesCompProtectedDataElement" as ProtectedData
+participant "AlarmManager" as Alarm
+
+Client -> ProtectedData : getData()
+activate ProtectedData
+ProtectedData -> ProtectedData : invert(invertedData)
+ProtectedData -> ProtectedData : compare with data
+alt if data valid
+  ProtectedData --> Client : return data
+else
+  ProtectedData -> Alarm : addAlarm(ATTITUDE_MEMORY_FAULT)
+  ProtectedData --> Client : return error
+end
+deactivate ProtectedData
+
+@enduml

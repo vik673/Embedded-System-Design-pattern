@@ -1,0 +1,25 @@
+@startuml SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor AdapterClient
+participant "HardwareAdapter" as Adapter
+participant "HardwareProxy" as Proxy
+
+AdapterClient -> Adapter : serviceRequest()
+activate Adapter
+Adapter -> Adapter : convertRequest()
+Adapter -> Proxy : executeCommand()
+activate Proxy
+Proxy --> Adapter : commandResult
+deactivate Proxy
+Adapter --> AdapterClient : response
+deactivate Adapter
+
+@enduml

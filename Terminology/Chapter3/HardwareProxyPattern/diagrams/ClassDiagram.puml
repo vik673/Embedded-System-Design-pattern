@@ -1,0 +1,29 @@
+@startuml ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class Client {
+    + initializeHardware()
+    + configureHardware(params)
+    + readData()
+    + writeData(value)
+}
+
+class HardwareProxy {
+    + initialize()
+    + configure(params)
+    + disable()
+    + access()
+    + mutate(value)
+    - marshal(data)
+    - unmarshal(data)
+    - deviceAddr : void*
+}
+
+Client --> HardwareProxy : interacts with
+
+@enduml

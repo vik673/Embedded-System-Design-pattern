@@ -1,0 +1,22 @@
+@startuml DeadlockPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class Thread {
+    + acquire(resource : SharedResource)
+    + release(resource : SharedResource)
+}
+
+class SharedResource {
+    + lock()
+    + unlock()
+}
+
+' This association shows that each Thread may hold one or more SharedResources.
+Thread "1" o-- "1..*" SharedResource : locks
+
+@enduml

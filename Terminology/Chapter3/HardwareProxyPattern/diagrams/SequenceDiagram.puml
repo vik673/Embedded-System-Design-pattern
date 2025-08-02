@@ -1,0 +1,36 @@
+@startuml SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Client
+participant "HardwareProxy" as Proxy
+
+Client -> Proxy : initialize()
+activate Proxy
+Proxy --> Client : Initialization complete
+deactivate Proxy
+
+Client -> Proxy : configure(params)
+activate Proxy
+Proxy --> Client : Configuration complete
+deactivate Proxy
+
+Client -> Proxy : access()
+activate Proxy
+Proxy -> Proxy : unmarshal(data)
+Proxy --> Client : Return data
+deactivate Proxy
+
+Client -> Proxy : mutate(value)
+activate Proxy
+Proxy -> Proxy : marshal(value)
+Proxy --> Client : Write complete
+deactivate Proxy
+
+@enduml

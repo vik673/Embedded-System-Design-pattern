@@ -1,0 +1,50 @@
+@startuml SmartDataPattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class SmartInt {
+    + value : int
+    + lowRange : int
+    + highRange : int
+    + errorCode : ErrorCodeType
+    + getPrimitive() : int
+    + setPrimitive(p: int) : ErrorCodeType
+    // ...existing code...
+}
+
+class SmartColor {
+    + value : ColorType
+    + lowRange : ColorType
+    + highRange : ColorType
+    + errorCode : ErrorCodeType
+    + getPrimitive() : ColorType
+    + setPrimitive(p: ColorType) : ErrorCodeType
+    // ...existing code...
+}
+
+class AlarmManager {
+    + addAlarm(err: ErrorCodeType)
+    // ...existing code...
+}
+
+class PatientDataClass {
+    + age : SmartInt
+    + weight : SmartInt
+    + heartRate : SmartInt
+    + foregroundColor : SmartColor
+    + backgroundColor : SmartColor
+    + getAge() : int
+    + setAge(a: int)
+    // ...existing code...
+}
+
+SmartInt --> AlarmManager : uses
+SmartColor --> AlarmManager : uses
+PatientDataClass --> SmartInt : aggregates
+PatientDataClass --> SmartColor : aggregates
+
+@enduml

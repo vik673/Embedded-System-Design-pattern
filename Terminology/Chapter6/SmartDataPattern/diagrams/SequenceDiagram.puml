@@ -1,0 +1,27 @@
+@startuml SmartDataPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "DataClient" as Client
+participant "SmartInt" as SI
+participant "AlarmManager" as AM
+
+Client -> SI : SmartInt_getPrimitive()
+activate SI
+SI -> SI : Invert the stored complement
+SI -> SI : Compare with normal value
+alt Data valid
+    SI --> Client : return value
+else Data corrupted
+    SI -> AM : addAlarm(BELOW_RANGE or ABOVE_RANGE)
+    SI --> Client : return error
+end
+deactivate SI
+
+@enduml

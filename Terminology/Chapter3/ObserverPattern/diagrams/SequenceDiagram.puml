@@ -1,0 +1,35 @@
+@startuml ObserverPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Client
+participant "ConcreteSubject" as Subject
+participant "ConcreteClient" as ClientObj
+
+' Client subscribes to subject with its accept callback
+Client -> Subject : subscribe(acceptPtr)
+activate Subject
+Subject --> Client : Subscription confirmed
+deactivate Subject
+
+' New data arrives at the subject
+Client -> Subject : newData(data)
+activate Subject
+Subject -> Subject : update datum and call notify()
+Subject -> ClientObj : accept(data)
+deactivate Subject
+ClientObj --> Client : Process received data
+
+' Client un-subscribes later
+Client -> Subject : unsubscribe(acceptPtr)
+activate Subject
+Subject --> Client : Unsubscription confirmed
+deactivate Subject
+
+@enduml

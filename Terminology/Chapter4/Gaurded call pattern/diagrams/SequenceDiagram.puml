@@ -1,0 +1,25 @@
+@startuml GuardedCall_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "PreemptiveTask" as Task
+participant "GuardedResource" as GR
+participant "Semaphore" as Sem
+
+Task -> GR : setValue(value)
+activate GR
+GR -> Sem : lock()
+note right: Enter Critical Region
+GR -> GR : perform critical update
+note right: Exit Critical Region
+GR -> Sem : release()
+deactivate GR
+Task <-- GR : return
+
+@enduml

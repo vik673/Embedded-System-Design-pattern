@@ -1,0 +1,39 @@
+@startuml PollingPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Application
+participant "BCPeriodicPoller" as Poller
+participant "BCTimer" as Timer
+participant "BreathingCircuitSensor[0]" as Sensor0
+participant "BreathingCircuitSensor[1]" as Sensor1
+participant "BreathingCircuitSensor[2]" as Sensor2
+participant "MedicalDisplay" as Display
+
+Application -> Poller : BCPeriodicPoller_Create()
+Poller -> Timer : BCTimer_installInterruptHandler()
+Application -> Poller : startPolling()
+activate Poller
+Timer -> Poller : (timeout) -> Poller.poll()
+activate Poller
+Poller -> Sensor0 : BreathingCircuitSensor_getData()
+Poller -> Display : MedicalDisplay_showO2Concentration(data)
+Poller -> Sensor1 : BreathingCircuitSensor_getData()
+Poller -> Sensor1 : BreathingCircuitSensor_getState()
+Poller -> Display : MedicalDisplay_showGasFlow(data)
+Poller -> Display : MedicalDisplay_showGasFlowStatus(state)
+Poller -> Sensor2 : BreathingCircuitSensor_getData()
+Poller -> Display : MedicalDisplay_showCircuitPressure(data)
+deactivate Poller
+Timer <-- Poller : reset timer
+...repeat polling cycle...
+Application -> Poller : stopPolling()
+deactivate Timer
+
+@enduml

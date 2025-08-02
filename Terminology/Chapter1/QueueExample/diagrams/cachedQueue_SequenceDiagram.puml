@@ -1,0 +1,64 @@
+@startuml CachedQueue_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Client
+participant "CachedQueue" as CQ
+participant "Queue" as Q
+participant "OutputQueue" as OQ
+participant "Disk" as Disk
+
+Client -> CQ : CachedQueue_Create()
+activate CQ
+CQ -> Q : Queue_Create()
+CQ -> OQ : Queue_Create()
+deactivate CQ
+
+Client -> CQ : insert(k)
+activate CQ
+CQ -> Q : isFull()
+alt Queue is full
+    CQ -> CQ : flush()
+    CQ -> Disk : Write data to disk
+end
+CQ -> Q : insert(k)
+deactivate CQ
+
+Client -> CQ : remove()
+activate CQ
+CQ -> OQ : isEmpty()
+alt OutputQueue is not empty
+    CQ -> OQ : remove()
+else OutputQueue is empty
+    CQ -> CQ : numberElementsOnDisk > 0
+    alt Data on disk
+        CQ -> CQ : load()
+        CQ -> Disk : Read data from disk
+        CQ -> OQ : insert()
+        CQ -> OQ : remove()
+    else No data on disk
+        CQ -> Q : remove()
+    end
+end
+deactivate CQ
+
+Client -> CQ : getSize()
+activate CQ
+CQ -> Q : getSize()
+CQ -> OQ : getSize()
+CQ -> CQ : Add numberElementsOnDisk
+deactivate CQ
+
+Client -> CQ : CachedQueue_Destroy()
+activate CQ
+CQ -> Q : Queue_Cleanup()
+CQ -> OQ : Queue_Cleanup()
+deactivate CQ
+
+@enduml

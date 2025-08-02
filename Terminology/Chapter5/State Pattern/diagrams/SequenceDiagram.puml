@@ -1,0 +1,36 @@
+@startuml StatePattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "Client" as C
+participant "Context" as CTX
+participant "Current State" as ST
+
+C -> CTX : evDigit('5')
+activate CTX
+CTX -> ST : evDigit('5')
+activate ST
+ST -> ST : Execute exitAction + transition actions
+deactivate ST
+CTX -> ST : entryAction() [new state]
+deactivate CTX
+C --> CTX : (Updated state)
+
+C -> CTX : evDot()
+activate CTX
+CTX -> ST : evDot()
+activate ST
+ST -> ST : Process event, update state if needed
+deactivate ST
+CTX -> ST : entryAction() [if state change]
+deactivate CTX
+
+...additional events...
+
+@enduml

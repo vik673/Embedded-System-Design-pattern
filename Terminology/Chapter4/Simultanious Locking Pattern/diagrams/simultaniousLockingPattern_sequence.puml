@@ -1,0 +1,34 @@
+@startuml SimultaneousLockingPattern_Sequence
+
+skinparam sequence {
+    ParticipantBackgroundColor #FDF6E3
+    ActorBackgroundColor #E3F6FC
+    LifeLineBorderColor #333
+    LifeLineBackgroundColor #FDE3A7
+}
+
+== Sequence: ResourceClient requests resources ==
+
+participant ResourceClient as RC #E3F6FC
+participant ResourceMaster as RM #FDE3A7
+participant MultimasteredResource as MR #D5F5E3
+participant QueryMutex as QM #F9E79F
+
+RC -> RM : lockAll()
+RM -> MR : tryLock()
+MR -> QM : tryLock()
+QM --> MR : success/fail
+RM -> MR : tryLock() [repeat for all resources]
+RM --> RC : lock success/fail
+
+RC -> RM : useResources()
+RM -> MR : service()
+MR --> RM : result
+RM --> RC : result
+
+RC -> RM : releaseAll()
+RM -> MR : release()
+MR -> QM : release()
+QM --> MR : released
+
+@enduml

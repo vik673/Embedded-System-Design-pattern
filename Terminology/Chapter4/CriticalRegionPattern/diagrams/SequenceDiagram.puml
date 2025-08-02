@@ -1,0 +1,37 @@
+@startuml CriticalRegion_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Application
+participant "CRRobotArmManager" as Manager
+participant "RobotArm" as Arm
+participant "CRDisplay" as Display
+participant "UserInput" as Input
+
+Application -> Manager : moveRobotArm()
+activate Manager
+    Manager -> Manager : motorZero()
+    activate Manager
+        Manager -> "OS" : OS_disable_task_switching()
+        ...critical region starts...
+        Manager -> Arm : moveTo(0,0,0)
+        ...critical region ends...
+        Manager -> "OS" : OS_enable_task_switching()
+    deactivate Manager
+    Manager -> Input : getX(), getY(), getX() ... (retrieve coordinates)
+    Manager -> Manager : OS_disable_task_switching()
+    ...critical region starts...
+    Manager -> Arm : moveTo(x,y,z)
+    ...critical region ends...
+    Manager -> Manager : OS_enable_task_switching()
+    Manager -> Display : printInt("Result is ", success)
+deactivate Manager
+Application <-- Manager : return control
+
+@enduml

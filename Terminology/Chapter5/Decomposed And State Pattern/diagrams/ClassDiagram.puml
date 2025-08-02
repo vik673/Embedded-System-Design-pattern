@@ -1,0 +1,49 @@
+@startuml DecomposedAndStatePattern_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class LightController {
+    + currentState: StateEnum
+    + changeState(event)
+    + updateDevices()
+    // ...existing code...
+}
+
+class ErrorStateClass <<andstate>> {
+    + processError(event)
+    // ...existing code...
+}
+
+class ModeStateClass <<andstate>> {
+    + processMode(event)
+    // ...existing code...
+}
+
+class AndStateList <<container>> {
+    + addState(state)
+    + removeState(state)
+    // ...existing code...
+}
+
+class Light <<device>> {
+    + turnOn()
+    + turnOff()
+    // ...existing code...
+}
+
+class Klaxon <<device>> {
+    + soundAlarm()
+    // ...existing code...
+}
+
+LightController --> AndStateList : aggregates
+AndStateList --> ErrorStateClass : contains
+AndStateList --> ModeStateClass : contains
+LightController --> Light : controls
+LightController --> Klaxon : controls
+
+@enduml

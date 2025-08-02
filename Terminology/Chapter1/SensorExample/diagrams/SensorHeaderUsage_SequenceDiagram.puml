@@ -1,0 +1,33 @@
+@startuml SensorHeaderUsage_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor User
+participant "Sensor" as Sensor
+
+User -> Sensor : Sensor_Create() [p_Sensor0]
+activate Sensor
+User -> Sensor : Sensor_Create() [p_Sensor1]
+activate Sensor
+
+User -> Sensor : Set p_Sensor0->value = 99
+User -> Sensor : Set p_Sensor1->value = -1
+
+User -> Sensor : Sensor_getValue(p_Sensor0)
+Sensor --> User : Return value (99)
+
+User -> Sensor : Sensor_getValue(p_Sensor1)
+Sensor --> User : Return value (-1)
+
+User -> Sensor : Sensor_Destroy(p_Sensor0)
+deactivate Sensor
+User -> Sensor : Sensor_Destroy(p_Sensor1)
+deactivate Sensor
+
+@enduml

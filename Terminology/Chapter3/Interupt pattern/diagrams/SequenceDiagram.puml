@@ -1,0 +1,25 @@
+@startuml InterruptPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor Hardware
+participant "InterruptHandler" as IH
+participant "InterruptVectorTable" as IVT
+participant "Application" as App
+
+' Interrupt occurs:
+Hardware -> IVT : Trigger interrupt (index x)
+IVT -> IH : Dispatch to ISR (handleButtonPushInterrupt)
+activate IH
+IH -> App : Perform minimal processing (e.g., LED_LightOn)
+deactivate IH
+' Return from interrupt:
+IVT -> Hardware : RTI (return to interrupted execution)
+
+@enduml

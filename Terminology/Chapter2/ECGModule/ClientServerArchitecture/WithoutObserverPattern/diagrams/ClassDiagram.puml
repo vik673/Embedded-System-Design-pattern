@@ -1,0 +1,37 @@
+@startuml ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class ECG_Module {
+    - dataNum : int
+    - lead1 : int
+    - lead2 : int
+    - itsTMDQueue : TMDQueue*
+    + acquireValue()
+    + setLeadPair(l1 : int, l2 : int)
+}
+
+class TMDQueue {
+    - head : int
+    - size : int
+    - buffer : TimeMarkedData[QUEUE_SIZE]
+    + insert(data : TimeMarkedData)
+    + remove(index : int) : TimeMarkedData
+    + isEmpty() : boolean
+}
+
+class HistogramDisplay {
+    - index : int
+    - itsTMDQueue : TMDQueue*
+    + getValue()
+    + updateHistogram()
+}
+
+ECG_Module --> TMDQueue : inserts data
+HistogramDisplay --> TMDQueue : retrieves data
+
+@enduml

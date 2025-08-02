@@ -1,0 +1,48 @@
+@startuml DualChannelPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "Client" as Client
+participant "DualChannelManager" as DCM
+participant "Channel (Active)" as CH_A
+participant "Channel (Alternative)" as CH_B
+participant "ConcreteTransformChecker" as Checker
+participant "ActuatorDeviceDriver" as Actuator
+
+Client -> DCM : initiate data acquisition
+activate DCM
+DCM -> CH_A : acquireData()
+activate CH_A
+CH_A -> SensorDeviceDriver : acquire raw data
+SensorDeviceDriver --> CH_A : raw data
+deactivate SensorDeviceDriver
+CH_A -> CH_A : processData()  // data transforms applied
+CH_A --> DCM : processed output
+deactivate CH_A
+
+DCM -> Checker : checkOutput()
+activate Checker
+Checker --> DCM : (valid?) [if valid, true; else false]
+deactivate Checker
+
+alt if output invalid
+    DCM -> CH_A : disable()
+    DCM -> CH_B : enable()
+    CH_B -> SensorDeviceDriver : acquire raw data
+    CH_B -> CH_B : processData()
+    CH_B --> DCM : processed output
+end
+
+DCM -> Actuator : setOutput(processed output)
+Actuator --> DCM : acknowledge
+deactivate DCM
+
+Client <-- DCM : (channel output delivered)
+
+@enduml

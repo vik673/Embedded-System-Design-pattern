@@ -1,0 +1,31 @@
+@startuml StateTableDesignPattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor "Client" as C
+participant "Context" as CTX
+participant "StateTableMachine" as STM
+participant "Mutex" as Mtx
+
+C -> CTX : evDigit('5')
+activate CTX
+CTX -> Mtx : lock()
+CTX -> STM : lookup(currentState, EV_DIGIT)
+STM --> CTX : TransitionRule (next state, action)
+CTX -> CTX : Execute exitAction of current state
+CTX -> CTX : Execute transition action
+CTX -> CTX : Update currentState
+CTX -> CTX : Execute entryAction of new state
+CTX -> Mtx : release()
+deactivate CTX
+C --> CTX : (Updated state)
+
+...additional events...
+
+@enduml

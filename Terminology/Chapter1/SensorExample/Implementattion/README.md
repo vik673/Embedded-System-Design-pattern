@@ -1,0 +1,74 @@
+# Embedded System Design: Classes and Tools
+
+## Classes
+A **class** is essentially a C `struct` that contains two types of features:
+1. **Data (Attributes)**: Represents the state of the object.
+2. **Behavioral (Methods)**: Represents the operations or actions the object can perform.
+
+### Objects
+- **Objects** are instances of classes.
+- Similar to how a variable (e.g., `x` of type `int`) is an instance of its type (`int`).
+- Objects of the same class share the same set of operations but may have different attribute values.
+
+---
+
+## Embedded System Development Tools
+
+### Cross-Compiler
+- A **cross-compiler** runs on the host system but generates executable code for a different target system.
+- Many real-time operating systems (RTOSs) provide proprietary compilers or customizations for open-source compilers like GCC.
+
+### Linker
+- A **linker** combines multiple executable code files into a single executable for the target system.
+- Responsibilities:
+  - Relocates the program by specifying the start address during the link step.
+  - Updates assembly language jump instructions to reflect the actual starting base address.
+
+### Loader
+- A **loader** loads the object image (output from the linker) into the target system's memory.
+- Methods:
+  - Via serial or network link.
+  - Burning the software image into nonvolatile memory (e.g., Flash or EPROM).
+- **Simulators**:
+  - Developers often use simulators (e.g., Z80 or 8051 simulators) to debug and test software before target boards are available.
+
+### Integrated Development Environments (IDEs)
+- **IDEs** integrate tools in the embedded toolchain to automate and facilitate development.
+- Modern IDEs are often hosted on the **Eclipse platform** due to its powerful environment and availability of third-party/open-source plugins.
+
+---
+
+## Example: Sensor Class
+
+### Class Definition
+The `Sensor` class includes:
+- **Data Elements**:
+  - `value`
+  - `updateFrequency`
+  - `filterFrequency`
+- **Operations**:
+  - `getValue()`
+  - `setValue(v: int)`
+  - `setUpdateFreq(r: int)`
+  - `getUpdateFreq()`
+  - `setFilterFreq(ff: int)`
+  - `getFilterFreq()`
+
+### Note
+- In embedded systems, there is typically **one instance** of a class running.
+- Data-centric and server-centric systems may have **multiple instances**.
+
+---
+
+## Commands
+
+### Compile the Code
+```bash
+cd "c:\Users\jaiswal\GitLab\repo\EmbeddedSystemDesignPattern\Terminology\SensorExample"
+gcc -o SensorExample.exe Sensor.c SensorHeaderUsage.c
+```
+
+### Execute the Code
+```bash
+.\SensorExample.exe
+```

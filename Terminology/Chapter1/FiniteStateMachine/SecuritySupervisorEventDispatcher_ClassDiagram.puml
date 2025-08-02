@@ -1,0 +1,38 @@
+@startuml SecuritySupervisorEventDispatcher_ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class SecuritySupervisorEventDispatcher {
+    - activeState : State
+    - retries : int
+    - pin : char[5]
+    + dispatchEvent(id : short) : eventStatus
+}
+
+class State {
+    + SecuritySupervisor_Idle
+    + SecuritySupervisor_Accepting
+    + SecuritySupervisor_CheckingLength
+    + SecuritySupervisor_ValidatingPIN
+    + SecuritySupervisor_SecurityOpen
+    + SecuritySupervisor_ErrorState
+}
+
+class Event {
+    + Null_id
+    + keypress_SecuritySupervisor_Event_id
+}
+
+class Params {
+    + key : char
+}
+
+SecuritySupervisorEventDispatcher --> State : manages
+SecuritySupervisorEventDispatcher --> Event : processes
+SecuritySupervisorEventDispatcher --> Params : uses
+
+@enduml

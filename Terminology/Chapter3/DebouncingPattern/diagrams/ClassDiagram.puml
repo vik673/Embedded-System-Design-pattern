@@ -1,0 +1,33 @@
+@startuml ClassDiagram
+
+skinparam class {
+    BackgroundColor LightBlue
+    ArrowColor Navy
+    BorderColor Black
+}
+
+class ApplicationClient {
+    + deviceEventReceive()
+}
+
+class BouncingDevice {
+    + sendEvent()
+    + getState() : DeviceState
+    - deviceState : ON/OFF
+}
+
+class Debouncer {
+    + eventReceive()
+    - oldState : DeviceState
+    - delayTimer : DebouncingTimer
+}
+
+class DebouncingTimer {
+    + delay(ms : int)
+}
+
+ApplicationClient <-- Debouncer : notifies
+BouncingDevice --> Debouncer : sends events
+Debouncer --> DebouncingTimer : uses
+
+@enduml

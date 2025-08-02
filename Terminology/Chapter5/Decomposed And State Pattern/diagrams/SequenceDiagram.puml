@@ -1,0 +1,41 @@
+@startuml DecomposedAndStatePattern_SequenceDiagram
+
+skinparam sequence {
+    ActorBackgroundColor LightGreen
+    ParticipantBackgroundColor LightYellow
+    LifeLineBorderColor Black
+    LifeLineBackgroundColor LightGray
+    ArrowColor Navy
+}
+
+actor User
+participant "LightController" as LC
+participant "ErrorStateClass" as ESC
+participant "ModeStateClass" as MSC
+participant "Light" as Lgt
+participant "Klaxon" as Klx
+
+User -> LC : initialize()
+activate LC
+LC -> LC : create AndStateList
+LC -> ESC : initialize error region
+LC -> MSC : initialize mode region
+deactivate LC
+
+User -> LC : trigger ON event
+activate LC
+LC -> ESC : processError(event)
+LC -> MSC : processMode(event)
+LC -> Lgt : turnOn()
+LC -> Klx : (no alarm)
+deactivate LC
+
+User -> LC : trigger EMERGENCY event
+activate LC
+LC -> ESC : transition to EMERGENCY_STATE
+LC -> MSC : adjust mode accordingly
+LC -> Klx : soundAlarm()
+LC -> Lgt : turnOff()
+deactivate LC
+
+@enduml
